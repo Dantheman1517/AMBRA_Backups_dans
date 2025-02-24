@@ -10,8 +10,8 @@ import configparser
 import json
 import numpy as np
 
-from AMBRA_Backups import utils
-import AMBRA_Backups
+from AMBRA_Backups_dans import utils
+import AMBRA_Backups_dans
 
 
 def get_config(config_path=None):
@@ -248,7 +248,7 @@ def comp_schema_cap_db(db_name, project_name):
     of a dag making a report depending on the db schema(right now just csv reports 8/19/24)
     """
 
-    db = AMBRA_Backups.database.Database(db_name)
+    db = AMBRA_Backups_dans.database.Database(db_name)
     project = get_redcap_project(project_name)
 
     forms = [f["instrument_name"] for f in project.export_instruments()]
@@ -856,7 +856,7 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
 
 # using main for testing purposes, manual backups
 if __name__ == "__main__":
-    import AMBRA_Backups
+    import AMBRA_Backups_dans
 
     testing = 0
     db_name = "CAPTIVA"
@@ -864,15 +864,15 @@ if __name__ == "__main__":
     # db_name = 'SISTER'
     # project_name = '29423 Vagal - SISTER'
     if testing:
-        db = AMBRA_Backups.database.Database("CAPTIVA_Test")
+        db = AMBRA_Backups_dans.database.Database("CAPTIVA_Test")
         project = get_redcap_project(
             "14102 Khandwala-Radiology Imaging Services Core Lab Workflow"
         )
     else:
-        db = AMBRA_Backups.database.Database(db_name)
+        db = AMBRA_Backups_dans.database.Database(db_name)
         project = get_redcap_project(project_name)
     date = datetime(2024, 12, 3)
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # manual backup
     # start_date = datetime(2023, 1, 1)
