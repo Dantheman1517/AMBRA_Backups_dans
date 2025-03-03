@@ -1,9 +1,11 @@
-'''
+"""
 02/25/2025: Class for REDCap log. Created as handling logs were getting complicated.
 (ie. extracting details, putting the log into the Database)
-'''
+"""
+
 import re
 from redcap import Project
+
 
 ################################################################################
 class REDCapLog:
@@ -15,13 +17,13 @@ class REDCapLog:
 
         Inputs:
         --------
-        patient_name (str): 
+        patient_name (str):
             The log's record ID.
 
-        timestamp (str): 
+        timestamp (str):
             The log's timestamp.
 
-        details (str): 
+        details (str):
             The log's details string.
         """
         self.project = project
@@ -46,9 +48,9 @@ class REDCapLog:
 
         Returns:
         --------
-        dict: 
+        dict:
             A dictionary of variables and values.
-            Example: 
+            Example:
             ```
             {
             '[instance]' : 2,
@@ -123,7 +125,6 @@ class REDCapLog:
 
         return details_dict
 
-
     # --------------------------------------------------------------------------
     def get_instance(self):
         """
@@ -131,21 +132,21 @@ class REDCapLog:
 
         Returns:
         --------
-        int: 
+        int:
             Instance number of record.
         """
         details = self.details
 
         if "[instance]" in details:
-        # If the log contains the instance number and nothing else, then
-        # no other data was changed, thus rendering the instance info irrelevant
+            # If the log contains the instance number and nothing else, then
+            # no other data was changed, thus rendering the instance info irrelevant
             if len(details) == 1:
                 return None
             instance = details["[instance]"]
             return instance
-        
+
         return None
-    
+
     # --------------------------------------------------------------------------
     def get_crf_name(self, instru_field_map: dict):
         details = self.details
@@ -155,20 +156,20 @@ class REDCapLog:
             fields = instru_field_map[instru]
             for field in fields:
                 regex = rf"^{field}(\([a-zA-z0-9]*\.?[a-zA-z0-9]*\))?$"  # Handles multi choice var
-                
+
                 for detail_var in details:
                     if re.fullmatch(regex, detail_var):
                         return instru
 
         return crf_name
-    
+
     # --------------------------------------------------------------------------
     def get_action(self):
         action = self.action.split(" ")[:-1]
-        action = ' '.join(action)
-        if 'Update record' in action:
-            return 'UPDATE'
-        if 'Delete record' in action:
-            return 'DELETE'
-        if 'Create record' in action:
-            return 'CREATE'
+        action = " ".join(action)
+        if "Update record" in action:
+            return "UPDATE"
+        if "Delete record" in action:
+            return "DELETE"
+        if "Create record" in action:
+            return "CREATE"
