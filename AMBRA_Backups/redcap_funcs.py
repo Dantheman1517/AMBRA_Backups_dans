@@ -1,5 +1,4 @@
 import pandas as pd
-import re
 from datetime import datetime
 from pathlib import Path
 import logging
@@ -473,7 +472,9 @@ def grab_logs(db, project: Project, only_record_logs, start_date=None, end_date=
     return logs
 
 
-def export_records_wrapper(db, project: Project, log: REDCapLog, patient_name, crf_name, instance):
+def export_records_wrapper(
+    db, project: Project, log: REDCapLog, patient_name, crf_name, instance
+):
     """
     wrapper is necessary because of a export_record bug. If a repeating instance form is
     the first form in the project, a residual row is returned for other forms. This function excludes
@@ -486,24 +487,35 @@ def export_records_wrapper(db, project: Project, log: REDCapLog, patient_name, c
 
     if form_df.empty:
         return form_df
-    
+
     form_df = form_df[form_df[crf_name + "_complete"] != ""]
     if instance:
         if "redcap_repeat_instrument" not in form_df.columns:
-            log_to_db(db=db, src=log, level='WARNING', msg=f""""
+            log_to_db(
+                db=db,
+                src=log,
+                level="WARNING",
+                msg=f""""
                       Instance number {instance} was found, but there's no repeating instances in {crf_name}.
-                      """)
+                      """,
+            )
             # raise ValueError(f"""Project '{project.export_project_info()["project_title"]}' does not have repeat instances.
-                            #    \npatient_name: {patient_name}, crf_name: {crf_name}""")
+            #    \npatient_name: {patient_name}, crf_name: {crf_name}""")
         if instance not in form_df["redcap_repeat_instance"].to_list():
-            log_to_db(db=db, src=log, level='WARNING', msg=f"""
+            log_to_db(
+                db=db,
+                src=log,
+                level="WARNING",
+                msg=f"""
             Instance number {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
-            """)
+            """,
+            )
 
             # raise ValueError(f"""Instance: {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
-                            #    \nIn project: {project.export_project_info()["project_title"]}, crf_name: {crf_name}, patient_name: {patient_name}""")
+            #    \nIn project: {project.export_project_info()["project_title"]}, crf_name: {crf_name}, patient_name: {patient_name}""")
         form_df = form_df[form_df["redcap_repeat_instance"] == instance]
     return form_df
+
 
 def check_project_name(db, project: Project):
     """
@@ -512,10 +524,10 @@ def check_project_name(db, project: Project):
 
     Inputs:
     --------
-    db (Database): 
+    db (Database):
         Project's database
 
-    project (Project): 
+    project (Project):
         Project's REDCap
     """
     project_name = project.export_project_info()["project_title"].strip()
@@ -540,18 +552,19 @@ def check_project_name(db, project: Project):
                 f"Live redcap name: {project_name}, database backup name: {db.db_name}.{db_backup_proj_name}"
             )
 
+
 def get_project_instru_field_map(project: Project):
     """
     Get dictionary of REDCap `project`'s instruments and its fields.
-    
+
     Inputs:
     --------
-    project (Project): 
+    project (Project):
         REDCap project
 
     Returns:
     --------
-    dict: 
+    dict:
         Dictionary of instruments and fields mapping.
         Example:
             'Form 1': ['field1', 'field2']
@@ -568,8 +581,9 @@ def get_project_instru_field_map(project: Project):
 
     for instru in instru_field_map:
         instru_field_map[instru].append(f"{instru}_complete")
-    
+
     return instru_field_map
+
 
 def get_repeating_instru(project: Project, instru_field_map: dict):
     """
@@ -577,15 +591,15 @@ def get_repeating_instru(project: Project, instru_field_map: dict):
 
     Inputs:
     --------
-    project (Project): 
+    project (Project):
         REDCap Project.
 
     instru_field_map (dict)
         REDCap Project's instrument - field mapping.
-    
+
     Returns:
     --------
-    Set: 
+    Set:
         Set of repeating forms
     """
     repeating_forms = set()
@@ -598,6 +612,7 @@ def get_repeating_instru(project: Project, instru_field_map: dict):
                 repeating_forms.add(name)
 
     return repeating_forms
+
 
 def project_data_to_db(db, project: Project, start_date=None, end_date=None):
     """
@@ -630,16 +645,18 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
     # Grab record logs
     only_record_logs = True
     record_logs = grab_logs(db, project, only_record_logs, start_date, end_date)
-    
+
     # Loop through record_logs and update db
     failed_to_add = []
     for i, log in tqdm(
         enumerate(record_logs), total=len(record_logs), desc="Adding data logs to db"
-    ):        
+    ):
         if log["details"] == "":  # no changes to record
             continue
 
-        log_instance = REDCapLog(project, log['action'], log['timestamp'], log['details'])
+        log_instance = REDCapLog(
+            project, log["action"], log["timestamp"], log["details"]
+        )
 
         patient_name = log_instance.patient_name
         action = log_instance.get_action()
@@ -647,9 +664,9 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         patient_id = db.run_select_query(
             """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
         )
-        
+
         # Set subject to be deleted in db if log says delete
-        if action == 'DELETE':
+        if action == "DELETE":
             patient_id = patient_id[0][0]
             db.run_insert_query(
                 """UPDATE CRF_RedCap SET deleted = 1 WHERE id_patient = %s""",
@@ -672,7 +689,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         if not crf_name:
             failed_to_add.append(log_instance)
             continue
-        
+
         # If the log does not specify the instance and it is a repeating form, then instance = 1
         if (instance is None) and (crf_name in repeating_instru):
             instance = 1
@@ -687,19 +704,20 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
         # Get current state of REDCap data for patient_name
         record_df = export_records_wrapper(
-            db=db, 
-            project=project, 
+            db=db,
+            project=project,
             log=log_instance,
-            patient_name=patient_name, 
-            crf_name=crf_name, 
-            instance=instance)
+            patient_name=patient_name,
+            crf_name=crf_name,
+            instance=instance,
+        )
 
         # Deleted record in redcap not in db
-        if record_df.empty and crf_row.empty:  
+        if record_df.empty and crf_row.empty:
             continue
-        
+
         # Deleted record in redcap in db
-        elif record_df.empty and not crf_row.empty:  
+        elif record_df.empty and not crf_row.empty:
             deleted = 1
             db.run_insert_query(
                 """UPDATE CRF_RedCap SET deleted = %s WHERE id = %s""",
@@ -707,7 +725,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
             )
 
         # Data to enter
-        elif not record_df.empty: 
+        elif not record_df.empty:
             # preprocess record_df for data insertion/update
             irrelevant_columns = {
                 "redcap_repeat_instrument",
@@ -810,19 +828,19 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
             #
             """
             log_to_db(
-                db=db, 
-                src=log, 
-                level="WARNING", 
+                db=db,
+                src=log,
+                level="WARNING",
                 msg="Could not find the Instrument that the variables belong to.",
-                resolution='''
+                resolution="""
                 All of the variables might be outdated, which means one of the following:
                 1. The variables and the Instrument were both deleted.
                 2. Only the variables' were deleted.
                 3. The variables' names changed.
-                '''
+                """,
             )
 
-    failed_to_add_str += "\n##############"    
+    failed_to_add_str += "\n##############"
     project_name = project.export_project_info()["project_title"].strip()
     logging.info(failed_to_add_str)
     db.run_insert_query(
@@ -832,7 +850,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
 
 # using main for testing purposes, manual backups
-if __name__ == "__main__":#
+if __name__ == "__main__":  #
     import AMBRA_Backups
 
     testing = 0

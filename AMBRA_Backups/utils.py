@@ -1,11 +1,6 @@
 from sys import platform
 from pathlib import Path
-from datetime import datetime
-from typing import (
-    Literal,
-    Optional,
-    Union
-)
+from typing import Literal, Union
 from redcap import Project
 import zipfile
 import logging
@@ -14,19 +9,15 @@ import os
 import shutil
 import pandas as pd
 import hashlib
-import AMBRA_Backups
-import AMBRA_Utils
 from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
 from AMBRA_Backups.Database.database import Database
 from AMBRA_Utils.Study import Study
 
 
 # ------------------------------------------------------------------------------
-def format_error(
-    msg: str, resolution: str = ''
-):
+def format_error(msg: str, resolution: str = ""):
     """
-    Raises error with specified message with nice formatting for 
+    Raises error with specified message with nice formatting for
     easier debugging on Airflow. Example:
     ```
     #########################
@@ -67,43 +58,44 @@ def format_error(
 
     raise Exception(raise_txt)
 
+
 # ------------------------------------------------------------------------------
 def log_to_db(
     db: Database,
     src: Union[Study, REDCapLog, Project],
     level: Literal["INFO", "WARNING", "ERROR"],
-    msg: str, 
-    resolution: str = '',
+    msg: str,
+    resolution: str = "",
 ):
     """
     Logs the event to database of trial into `airflow_logs` table.
 
     Inputs:
     --------
-    db (Database): 
+    db (Database):
         Database of the trial.
-    
-    src (Union[Study, REDCapLog]): 
-        Source where the log is referring to: 
+
+    src (Union[Study, REDCapLog]):
+        Source where the log is referring to:
         `Study`:        An Inteleshare study
         `REDCapLog`:    A REDCap log.
         `Project`:      A REDCap project.
 
-    level (Literal['WARNING', 'ERROR']): 
+    level (Literal['WARNING', 'ERROR']):
         `INFO`:     General useful information that most likely does not warrant action items.
         `WARNING`:  An oddity that might be an actionable item.
         `ERROR`:    Anything that warrants stopping the task immediately.
 
-    msg (str): 
+    msg (str):
         Description about the event.
-    
-    resolution (str): 
+
+    resolution (str):
         Instructions on suggestions of how to resolve the error.
         Defaults to empty string.
 
     Raises:
     --------
-    Exception: 
+    Exception:
         When the level is `ERROR`.
 
     Returns:
@@ -112,10 +104,10 @@ def log_to_db(
     """
 
     # Raise error if airflow_logs table not in schema
-    if ('airflow_logs', ) not in db.list_tables():
+    if ("airflow_logs",) not in db.list_tables():
         format_error(
-            f'Table airflow_logs is not in schema {db.db_name}.',
-            'Create the airflow_logs table.'
+            f"Table airflow_logs is not in schema {db.db_name}.",
+            "Create the airflow_logs table.",
         )
 
     # Handle src based on its type
@@ -137,21 +129,24 @@ def log_to_db(
         """
     # Insert log into airflow_logs table
     if resolution:
-        db_msg = db_msg + f"""\n
+        db_msg = (
+            db_msg
+            + f"""\n
         Resolution:     {resolution}\n
         """
-    
+        )
+
     db.run_insert_query(
         """
         INSERT INTO airflow_logs (message, type)
         VALUES (%s, %s)
         """,
-        (db_msg, level)
+        (db_msg, level),
     )
 
-    if level == 'ERROR':
-        format_error(msg, resolution) 
-    
+    if level == "ERROR":
+        format_error(msg, resolution)
+
 
 # ------------------------------------------------------------------------------
 def hash_file(file_path):
