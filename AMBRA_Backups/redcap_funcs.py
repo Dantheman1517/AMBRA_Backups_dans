@@ -496,10 +496,10 @@ def export_records_wrapper(
                 src=log,
                 level="WARNING",
                 msg=f""""
-                    Instance number {instance} was found, but there's no repeating instances in {crf_name}.
+                    Instance number {instance} was found for form {crf_name}, but there's no repeating instances in {crf_name}.
 
                     Potential reasons:
-                    1. The instrument was repeating, but changed to non-repeating
+                    1. The instrument was repeating, but changed to non-repeating.
                       """,
             )
             # raise ValueError(f"""Project '{project.export_project_info()["project_title"]}' does not have repeat instances.
@@ -510,10 +510,10 @@ def export_records_wrapper(
                 src=log,
                 level="WARNING",
                 msg=f"""
-                Instance number {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
+                Instance number {instance} in form {crf_name} not of available instances: {form_df["redcap_repeat_instance"].to_list()}.
 
                 Potential reasons:
-                1. The instance was updated/created, but then deleted
+                1. The instance was updated/created, but then deleted.
 
             """,
             )
@@ -829,17 +829,18 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         """
         for log in failed_to_add:
             failed_to_add_str += f"""\n
-            #\t   {log.patient_name} \n
-            #\t   {log.action} \n
-            #\t   {log.details}  \n  
+            #\t   Patient:  {log.patient_name} \n
+            #\t   Action:   {log.action} \n
+            #\t   Details:  {log.details}  \n  
             #
             """
             log_to_db(
                 db=db,
                 src=log,
                 level="WARNING",
-                msg="""Could not find the Instrument that the variables belong to.
+                msg=f"""Could not find form that the variables belong to.
                 All of the variables might be outdated.
+                Variables: {log.variables}
 
                 Potential reasons:
                 1. The variables and the Instrument were both deleted.

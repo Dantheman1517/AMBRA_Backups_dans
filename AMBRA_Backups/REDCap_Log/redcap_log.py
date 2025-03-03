@@ -32,6 +32,7 @@ class REDCapLog:
         self.timestamp = timestamp
         self.original_details = details
         self.details = self.extract_details()
+        self.variables = list(self.details.keys())
 
     # --------------------------------------------------------------------------
     def extract_details(self):
