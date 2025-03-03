@@ -842,7 +842,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
         failed_to_add_str += "\n##############"
         logging.info(failed_to_add_str)
-    
+
     # Update project backup info
     project_name = project.export_project_info()["project_title"].strip()
     db.run_insert_query(

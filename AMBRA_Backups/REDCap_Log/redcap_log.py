@@ -119,9 +119,9 @@ class REDCapLog:
                 # For cases like `q1003 = checked`
                 else:
                     substring = details[start_val:]
-                    if ',' in substring:
+                    if "," in substring:
                         right = substring.index(",") + start_val
-                    
+
                     # When at the end of details
                     else:
                         right = n
