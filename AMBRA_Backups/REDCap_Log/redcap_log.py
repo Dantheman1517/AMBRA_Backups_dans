@@ -100,6 +100,10 @@ class REDCapLog:
 
                         # If found potential enclosing single quote
                         if current_r == "'":
+                            # When at the end of string
+                            if (right + 1) >= n:
+                                found_val = True
+                                continue
                             # Check if next character is a comma (eg `q1001 = '2', q1002 = '3'`)
                             next_chr = details[right + 1]
                             right += 1
@@ -161,6 +165,7 @@ class REDCapLog:
                     if re.fullmatch(regex, detail_var):
                         return instru
 
+        self.crf_name = crf_name
         return crf_name
 
     # --------------------------------------------------------------------------

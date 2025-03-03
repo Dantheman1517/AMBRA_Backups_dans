@@ -430,7 +430,7 @@ def comp_schema_cap_db(db_name, project_name):
         raise Exception("Please handle the above discrepancies")
 
 
-def grab_logs(db, project, only_record_logs, start_date=None, end_date=None):
+def grab_logs(db, project: Project, only_record_logs, start_date=None, end_date=None):
     """
     Extracts logs from redcap from start_date to end_date
     If only_record_logs is true only logs that modify records are extracted
@@ -472,7 +472,9 @@ def grab_logs(db, project, only_record_logs, start_date=None, end_date=None):
     return logs
 
 
-def export_records_wrapper(db, project, log, patient_name, crf_name, instance):
+def export_records_wrapper(
+    db, project: Project, log: REDCapLog, patient_name, crf_name, instance
+):
     """
     wrapper is necessary because of a export_record bug. If a repeating instance form is
     the first form in the project, a residual row is returned for other forms. This function excludes
@@ -515,7 +517,7 @@ def export_records_wrapper(db, project, log, patient_name, crf_name, instance):
     return form_df
 
 
-def check_project_name(db, project):
+def check_project_name(db, project: Project):
     """
     Check if db's project name and REDCap's project name are the same. Insert
     into backup_info_RedCap if needed.
@@ -551,7 +553,7 @@ def check_project_name(db, project):
             )
 
 
-def get_project_instru_field_map(project):
+def get_project_instru_field_map(project: Project):
     """
     Get dictionary of REDCap `project`'s instruments and its fields.
 
@@ -583,7 +585,7 @@ def get_project_instru_field_map(project):
     return instru_field_map
 
 
-def get_repeating_instru(project, instru_field_map):
+def get_repeating_instru(project: Project, instru_field_map: dict):
     """
     Get repeating instruments of REDCap `project`.
 
@@ -597,8 +599,8 @@ def get_repeating_instru(project, instru_field_map):
 
     Returns:
     --------
-    list:
-        List of repeating forms
+    Set:
+        Set of repeating forms
     """
     repeating_forms = set()
     if project.export_project_info()["has_repeating_instruments_or_events"] == 1:
@@ -607,12 +609,12 @@ def get_repeating_instru(project, instru_field_map):
         ]
         for name in instru_field_map:
             if name in repeating_instru_events:
-                repeating_forms.append(name)
+                repeating_forms.add(name)
 
     return repeating_forms
 
 
-def project_data_to_db(db, project, start_date=None, end_date=None):
+def project_data_to_db(db, project: Project, start_date=None, end_date=None):
     """
     Exports data from redcap logs into db.
     Parses through REDCap logs to figure out which records have been changed.
@@ -704,6 +706,7 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
         record_df = export_records_wrapper(
             db=db,
             project=project,
+            log=log_instance,
             patient_name=patient_name,
             crf_name=crf_name,
             instance=instance,
@@ -826,7 +829,7 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
             """
             log_to_db(
                 db=db,
-                src=log[0],
+                src=log,
                 level="WARNING",
                 msg="Could not find the Instrument that the variables belong to.",
                 resolution="""
@@ -838,6 +841,7 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
             )
 
     failed_to_add_str += "\n##############"
+    project_name = project.export_project_info()["project_title"].strip()
     logging.info(failed_to_add_str)
     db.run_insert_query(
         "UPDATE backup_info_RedCap SET last_backup = %s WHERE project_name = %s",

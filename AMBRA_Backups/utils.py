@@ -113,14 +113,14 @@ def log_to_db(
     # Handle src based on its type
     if type(src) is Study:
         db_msg = f"""
-        Subject ID:     {src.patient_name}
-        Study UUID:     {src.study_uid.replace(".", "_")}
+        Subject ID:     {src.patient_name}\n
+        Study UUID:     {src.study_uid.replace(".", "_")}\n
         Details:        {msg}
         """
     elif type(src) is REDCapLog:
         db_msg = f"""
-        Subject ID:     {src.patient_name}
-        Log Timestamp:  {src.timestamp}
+        Subject ID:     {src.patient_name}\n
+        Log Timestamp:  {src.timestamp}\n
         Details:        {msg}
         """
     elif type(src) is Project:
@@ -129,15 +129,17 @@ def log_to_db(
         """
     # Insert log into airflow_logs table
     if resolution:
-        db_msg = db_msg
-        +f"""
-        Resolution:     {resolution}
+        db_msg = (
+            db_msg
+            + f"""\n
+        Resolution:     {resolution}\n
         """
+        )
 
     db.run_insert_query(
         """
         INSERT INTO airflow_logs (message, type)
-        VALUES (%s, %s,)
+        VALUES (%s, %s)
         """,
         (db_msg, level),
     )
