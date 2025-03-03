@@ -496,7 +496,10 @@ def export_records_wrapper(
                 src=log,
                 level="WARNING",
                 msg=f""""
-                      Instance number {instance} was found, but there's no repeating instances in {crf_name}.
+                    Instance number {instance} was found, but there's no repeating instances in {crf_name}.
+
+                    Potential reasons:
+                    1. The instrument was repeating, but changed to non-repeating
                       """,
             )
             # raise ValueError(f"""Project '{project.export_project_info()["project_title"]}' does not have repeat instances.
@@ -507,7 +510,11 @@ def export_records_wrapper(
                 src=log,
                 level="WARNING",
                 msg=f"""
-            Instance number {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
+                Instance number {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
+
+                Potential reasons:
+                1. The instance was updated/created, but then deleted
+
             """,
             )
 
@@ -831,13 +838,13 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                 db=db,
                 src=log,
                 level="WARNING",
-                msg="Could not find the Instrument that the variables belong to.",
-                resolution="""
-                All of the variables might be outdated, which means one of the following:
+                msg="""Could not find the Instrument that the variables belong to.
+                All of the variables might be outdated.
+
+                Potential reasons:
                 1. The variables and the Instrument were both deleted.
                 2. Only the variables' were deleted.
-                3. The variables' names changed.
-                """,
+                3. The variables' names changed.""",
             )
 
         failed_to_add_str += "\n##############"
