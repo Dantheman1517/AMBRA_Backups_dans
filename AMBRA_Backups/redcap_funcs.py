@@ -839,7 +839,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                 3. The variables' names changed.
                 """,
             )
-            
+
         failed_to_add_str += "\n##############"
         logging.info(failed_to_add_str)
 
