@@ -29,7 +29,7 @@ def get_config(config_path=None):
     return config
 
 
-def get_redcap_project(proj_name, config_path=None):
+def get_redcap_project(proj_name, config_path=None) -> Project:
     config = get_config(config_path=config_path)
     proj_config = config[proj_name]
     return Project("https://redcap.research.cchmc.org/api/", proj_config["token"])
@@ -560,7 +560,7 @@ def check_project_name(db, project: Project):
             )
 
 
-def get_project_instru_field_map(project: Project):
+def get_project_instru_field_map(project: Project) -> dict:
     """
     Get dictionary of REDCap `project`'s instruments and its fields.
 
