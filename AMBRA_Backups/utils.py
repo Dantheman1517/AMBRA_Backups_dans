@@ -75,9 +75,9 @@ def log_to_db(
     db (Database):
         Database of the trial.
 
-    src (Union[Study, REDCapLog]):
+    src (Union[Study, REDCapLog, Project]):
         Source where the log is referring to:
-        `Study`:        An Inteleshare study
+        `Study`:        An Inteleshare study.
         `REDCapLog`:    A REDCap log.
         `Project`:      A REDCap project.
 
