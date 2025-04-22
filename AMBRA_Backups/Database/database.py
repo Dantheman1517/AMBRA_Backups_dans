@@ -556,7 +556,7 @@ class Database:
         if (existing_id is None) or ignore_existing:
             if study.patient_name is None or study.patient_name == "":
                 raise Exception("Error: Patient name is empty!")
-            
+
             insert_study_query = f"""
             INSERT IGNORE INTO studies
             (id_patient,
