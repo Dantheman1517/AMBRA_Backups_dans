@@ -556,7 +556,7 @@ class Database:
         if (existing_id is None) or ignore_existing:
             if study.patient_name is None or study.patient_name == "":
                 raise Exception("Error: Patient name is empty!")
-
+            
             insert_study_query = f"""
             INSERT IGNORE INTO studies
             (id_patient,
@@ -597,6 +597,7 @@ class Database:
 
             update_study_query = f"""
             UPDATE studies SET
+            id_patient = %s,
             attachment_count = %s,
             series_count = %s,
             uuid = %s,
@@ -613,8 +614,13 @@ class Database:
             WHERE id = %s;
             """
 
+            id_patient = self.run_select_query(f"""
+                SELECT id FROM patients WHERE patient_name = {study.patient_name}
+            """)[0][0]
+
             study_record = (
                 (
+                    id_patient,
                     study.attachment_count,
                     len(list(study.get_series())),
                     study.uuid,
