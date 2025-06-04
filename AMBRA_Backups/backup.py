@@ -3,6 +3,7 @@ from pathlib import Path
 import logging
 from datetime import datetime
 from itertools import chain
+import csv
 
 import mysql.connector.errors as mysql_errors
 from ambra_sdk.exceptions.storage import NotFound, ImageNotFound, Unknown, StudyNotFound
@@ -70,6 +71,7 @@ def backup_study(
         logging.info(f"\tBacking up {study.patient_name} to {zip_file}.")
         try:
             study.download(zip_file, ignore_exists=True)
+            create_log(study, study_dir)
         except NotFound:
             logging.error(
                 f"\tData not found on Ambra for {study.patient_name} {study.formatted_description}."
@@ -96,6 +98,59 @@ def backup_study(
 
     # TODO: Change to return a dictionary with these paths
     return zip_file, nifti_dir, annotation_file
+
+
+# ------------------------------------------------------------------------------
+def create_log(study, study_dir):
+    """
+    Log file is stored in the directory for each study, recording the history of the study backup.
+
+    If no file exists, create a file and add headers before appending data.
+    Update the log file, appending a new row.
+
+
+    Backup Date: Current time when backup is created or uploaded.
+
+    Inputs:
+    --------
+    study:
+
+    study_dir: Directory where the study is located
+    """
+    newrow = [
+        study.patient_name,
+        study.study_description,
+        study.modality,
+        study.image_count,
+        study.attachment_count,
+        study.study_date,
+        study.created,
+        study.updated,
+        datetime.now(),
+    ]
+
+    log_filename = "log.csv"
+    file_path = study_dir + "/" + log_filename
+    has_header = os.path.exists(file_path)
+
+    with open(log_filename, mode="a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+
+        if not has_header:
+            header = [
+                "Participant",
+                "Description",
+                "Modality",
+                "Number of Images",
+                "Attachment Count",
+                "Study Date",
+                "Creation Date",
+                "Modification Date",
+                "Backup Date",
+            ]
+            writer.writerow(header)
+
+        writer.writerow(newrow)
 
 
 # ------------------------------------------------------------------------------
