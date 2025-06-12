@@ -130,10 +130,10 @@ def create_log(study, study_dir):
     ]
 
     log_filename = "log.csv"
-    file_path = study_dir + "/" + log_filename
-    has_header = os.path.exists(file_path)
+    file_path = study_dir.joinpath(log_filename)
+    has_header = file_path.exists()
 
-    with open(log_filename, mode="a", newline="") as csvfile:
+    with open(file_path, mode="a", newline="") as csvfile:
         writer = csv.writer(csvfile)
 
         if not has_header:
