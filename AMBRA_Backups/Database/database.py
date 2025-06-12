@@ -614,9 +614,12 @@ class Database:
             WHERE id = %s;
             """
 
-            id_patient = self.run_select_query(f"""
+            id_patient = self.run_select_query(
+                """
                 SELECT id FROM patients WHERE patient_name = %s
-            """, record=(study.patient_name,))[0][0]
+            """,
+                record=(study.patient_name,),
+            )[0][0]
 
             study_record = (
                 (
