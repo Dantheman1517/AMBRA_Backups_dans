@@ -615,8 +615,8 @@ class Database:
             """
 
             id_patient = self.run_select_query(f"""
-                SELECT id FROM patients WHERE patient_name = {study.patient_name}
-            """)[0][0]
+                SELECT id FROM patients WHERE patient_name = %s
+            """, record=(study.patient_name,))[0][0]
 
             study_record = (
                 (
