@@ -35,7 +35,7 @@ def get_redcap_project(proj_name, config_path=None) -> Project:
     return Project("https://redcap.research.cchmc.org/api/", proj_config["token"])
 
 
-def backup_project(project_name, url, api_key, output_dir, bckp_files=True):
+def backup_project(project_name, output_dir, bckp_files=True):
     """
     Backup a REDCap project by exporting project information, metadata, records, users, roles, role assignments,
     files, and repeating instruments to specified output directory.
@@ -50,7 +50,7 @@ def backup_project(project_name, url, api_key, output_dir, bckp_files=True):
     Returns:
         None
     """
-    project = Project(url, api_key)
+    project = get_redcap_project(project_name)
 
     # Info
     # ---------------
