@@ -1,5 +1,7 @@
 from sys import platform
 from pathlib import Path
+from typing import Literal, Union
+from redcap import Project
 import zipfile
 import logging
 import subprocess
@@ -7,41 +9,143 @@ import os
 import shutil
 import pandas as pd
 import hashlib
+from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
+from AMBRA_Backups.Database.database import Database
+from AMBRA_Utils.Study import Study
 
 
 # ------------------------------------------------------------------------------
-def format_exception(
-    exception_type: BaseException, exception_msg: str, exception_resolution: str
-):
+def format_error(msg: str, resolution: str = ""):
     """
-    Raises specified Exception with nicer formatting. Example"
-    :
+    Raises error with specified message with nice formatting for
+    easier debugging on Airflow. Example:
+    ```
     #########################
     #
-    # ValueError: The REDCap's project name and the name in the DB are different
-    # Resolution: Harmonize the two names
+    #   Details     : The REDCap's project name and the name in the DB are different
+    #   Resolution  : Harmonize the two names
     #
     #########################
+    ```
+    Resolution message is optional.
 
     Inputs:
     --------
-    exception_type (BaseException):
-        Exception type
-
-    exception_msg (str):
-        Exception message
+    msg (str):
+        Details about the error.
 
     exception_resolution (str):
-        Suggestion on how to resolve the error
+        Suggestion on how to resolve the error.
+        Defaults to empty string.
     """
-    raise exception_type(f"""
-    ########################
-    # 
-    #   {exception_type.__name__}: {exception_msg}
-    #   Resolution: {exception_resolution}
-    # 
-    ########################
-    """)
+    if resolution:
+        raise_txt = f"""
+        ########################
+        # 
+        #   Details     : {msg}
+        #   Resolution  : {resolution}
+        # 
+        ########################
+        """
+    else:
+        raise_txt = f"""
+        ########################
+        # 
+        #   Details     : {msg}
+        # 
+        ########################
+        """
+
+    raise Exception(raise_txt)
+
+
+# ------------------------------------------------------------------------------
+def log_to_db(
+    db: Database,
+    src: Union[Study, REDCapLog, Project],
+    level: Literal["INFO", "WARNING", "ERROR"],
+    msg: str,
+    resolution: str = "",
+):
+    """
+    Logs the event to database of trial into `airflow_logs` table.
+
+    Inputs:
+    --------
+    db (Database):
+        Database of the trial.
+
+    src (Union[Study, REDCapLog, Project]):
+        Source where the log is referring to:
+        `Study`:        An Inteleshare study.
+        `REDCapLog`:    A REDCap log.
+        `Project`:      A REDCap project.
+
+    level (Literal['WARNING', 'ERROR']):
+        `INFO`:     General useful information that most likely does not warrant action items.
+        `WARNING`:  An oddity that might be an actionable item.
+        `ERROR`:    Anything that warrants stopping the task immediately.
+
+    msg (str):
+        Description about the event.
+
+    resolution (str):
+        Instructions on suggestions of how to resolve the error.
+        Defaults to empty string.
+
+    Raises:
+    --------
+    Exception:
+        When the level is `ERROR`.
+
+    Returns:
+    --------
+    None
+    """
+
+    # Raise error if airflow_logs table not in schema
+    if ("airflow_logs",) not in db.list_tables():
+        format_error(
+            f"Table airflow_logs is not in schema {db.db_name}.",
+            "Create the airflow_logs table.",
+        )
+
+    # Handle src based on its type
+    if type(src) is Study:
+        db_msg = f"""
+        Subject ID:     {src.patient_name}\n
+        Study UUID:     {src.study_uid.replace(".", "_")}\n
+        Details:        {msg}
+        """
+    elif type(src) is REDCapLog:
+        db_msg = f"""
+        Subject ID:     {src.patient_name}\n
+        Log Timestamp:  {src.timestamp}\n
+        Details:        {msg}
+        """
+    elif type(src) is Project:
+        db_msg = f"""
+        Project Title:  {src.export_project_info()["project_title"]}
+        """
+    # Insert log into airflow_logs table
+    if resolution:
+        db_msg = (
+            db_msg
+            + f"""\n
+        Resolution:     {resolution}\n
+        """
+        )
+
+    db.run_insert_query(
+        """
+        INSERT INTO airflow_logs (message, type)
+        VALUES (%s, %s)
+        """,
+        (db_msg, level),
+    )
+
+    if level == "ERROR":
+        format_error(msg, resolution)
 
 
 # ------------------------------------------------------------------------------

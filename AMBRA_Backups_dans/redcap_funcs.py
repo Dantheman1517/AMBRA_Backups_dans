@@ -1,5 +1,4 @@
 import pandas as pd
-import re
 from datetime import datetime
 from pathlib import Path
 import logging
@@ -10,8 +9,10 @@ import configparser
 import json
 import numpy as np
 
-from AMBRA_Backups_dans import utils
-import AMBRA_Backups_dans
+from AMBRA_Backups import utils
+from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
+import AMBRA_Backups
+from AMBRA_Backups.utils import log_to_db
 
 
 def get_config(config_path=None):
@@ -28,13 +29,13 @@ def get_config(config_path=None):
     return config
 
 
-def get_redcap_project(proj_name, config_path=None):
+def get_redcap_project(proj_name, config_path=None) -> Project:
     config = get_config(config_path=config_path)
     proj_config = config[proj_name]
     return Project("https://redcap.research.cchmc.org/api/", proj_config["token"])
 
 
-def backup_project(project_name, url, api_key, output_dir, bckp_files=True):
+def backup_project(project_name, output_dir, bckp_files=True):
     """
     Backup a REDCap project by exporting project information, metadata, records, users, roles, role assignments,
     files, and repeating instruments to specified output directory.
@@ -49,7 +50,7 @@ def backup_project(project_name, url, api_key, output_dir, bckp_files=True):
     Returns:
         None
     """
-    project = Project(url, api_key)
+    project = get_redcap_project(project_name)
 
     # Info
     # ---------------
@@ -429,7 +430,7 @@ def comp_schema_cap_db(db_name, project_name):
         raise Exception("Please handle the above discrepancies")
 
 
-def grab_logs(db, project, only_record_logs, start_date=None, end_date=None):
+def grab_logs(db, project: Project, only_record_logs, start_date=None, end_date=None):
     """
     Extracts logs from redcap from start_date to end_date
     If only_record_logs is true only logs that modify records are extracted
@@ -471,85 +472,9 @@ def grab_logs(db, project, only_record_logs, start_date=None, end_date=None):
     return logs
 
 
-def extract_details(details):
-    """
-    Extract a dictionary details from log['details']
-
-    - left right pointer
-    - left pointer indicates start of info, right pointer end of info
-    - keep a list of stuff like quotes to keep in track the closing quotes
-    - right pointer must be at the ending quote (except when it's the ~checked~ case
-    - set left pointer to be at next thing always
-    """
-
-    n = len(details)
-    details_dict = dict()
-    if n == 1:
-        return details_dict
-    left = 0
-    right = 1
-
-    while right < n:
-        # If the current var is [instance = int]
-        if details[left] == "[":
-            check = details[left : left + 12]
-            if check == "[instance = ":
-                substring = details[left:]
-                start = substring.index("= ") + 2 + left
-                end = substring.index("]") + left
-                details_dict["[instance]"] = int(details[start:end])
-                right = end + 1
-            else:
-                raise Exception("This case should not be possible")
-
-        # For regular variables
-        else:
-            # Extract variable
-            substring = details[left:]
-            end_var = substring.index(" = ") + left
-            variable = details[left:end_var]
-
-            # Find value attached to variable
-            start_val = end_var + 3
-            right = start_val + 1
-
-            if details[start_val] == "'":
-                found_val = False
-                while not found_val:
-                    if right == n:
-                        found_val = True
-                        continue
-                    current_r = details[right]
-
-                    # If found potential enclosing single quote
-                    if current_r == "'":
-                        # Check if next character is a comma (eg `q1001 = '2', q1002 = '3'`)
-                        next_chr = details[right + 1]
-                        right += 1
-
-                        # If comma and correct number of quotes so far, then assume enclosing quote
-                        if next_chr == ",":
-                            found_val = True
-                            continue
-                    # Else keep going
-                    else:
-                        right += 1
-
-            # For cases like `q1003 = checked`
-            else:
-                substring = details[start_val:]
-                right = substring.index(",") + start_val
-
-            val = details[start_val:right]
-            details_dict[variable] = val
-
-        left = right + 2
-        right = left + 1
-
-    return details_dict
-
-
-def export_records_wrapper(project, patient_name, crf_name, instance=None):
+def export_records_wrapper(
+    db, project: Project, log: REDCapLog, patient_name, crf_name, instance
+):
     """
     wrapper is necessary because of a export_record bug. If a repeating instance form is
     the first form in the project, a residual row is returned for other forms. This function excludes
@@ -562,43 +487,61 @@ def export_records_wrapper(project, patient_name, crf_name, instance=None):
 
     if form_df.empty:
         return form_df
+
     form_df = form_df[form_df[crf_name + "_complete"] != ""]
     if instance:
         if "redcap_repeat_instrument" not in form_df.columns:
-            raise ValueError(f"""Project '{project.export_project_info()["project_title"]}' does not have repeat instances.
-                               \npatient_name: {patient_name}, crf_name: {crf_name}""")
+            log_to_db(
+                db=db,
+                src=log,
+                level="WARNING",
+                msg=f""""
+                    Instance number {instance} was found for form {crf_name}, but there's no repeating instances in {crf_name}.
+
+                    Potential reasons:
+                    1. The instrument was repeating, but changed to non-repeating.
+                      """,
+            )
+            # raise ValueError(f"""Project '{project.export_project_info()["project_title"]}' does not have repeat instances.
+            #    \npatient_name: {patient_name}, crf_name: {crf_name}""")
         if instance not in form_df["redcap_repeat_instance"].to_list():
-            raise ValueError(f"""Instance: {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
-                               \nIn project: {project.export_project_info()["project_title"]}, crf_name: {crf_name}, patient_name: {patient_name}""")
+            log_to_db(
+                db=db,
+                src=log,
+                level="WARNING",
+                msg=f"""
+                Instance number {instance} in form {crf_name} not of available instances: {form_df["redcap_repeat_instance"].to_list()}.
+
+                Potential reasons:
+                1. The instance was updated/created, but then deleted.
+
+            """,
+            )
+
+            # raise ValueError(f"""Instance: {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
+            #    \nIn project: {project.export_project_info()["project_title"]}, crf_name: {crf_name}, patient_name: {patient_name}""")
         form_df = form_df[form_df["redcap_repeat_instance"] == instance]
     return form_df
 
 
-def project_data_to_db(db, project, start_date=None, end_date=None):
+def check_project_name(db, project: Project):
     """
-    Exports data from redcap logs into db
-    1. extract logs from redcap from last successful update to now
-    2. insert new patients into db if any new patients
-    3. extract then remove instance, complete, and record_id from logs
-    4. find crf_name from log questions
-    5. if log variables cannot match a crf_name, add to failed_to_add list,
-       otherwise continue to handle crf
-    6. if crf_row for (patient,crf_name,instance) does not exist, insert new crf_row
-       if exists, update verified/complete if exists and differs from log
-    7. insert data into crf_data_redcap
-    8. if any logs failed to add, raise error with failed_to_add list
-    9. update last export time in backup_info_RedCap
+    Check if db's project name and REDCap's project name are the same. Insert
+    into backup_info_RedCap if needed.
 
-    Note: if a log appears in redcap, but not through the api, this is normal, the api
-          just takes a few minutes
+    Inputs:
+    --------
+    db (Database):
+        Project's database
+
+    project (Project):
+        Project's REDCap
     """
-
-    # try:
-
     project_name = project.export_project_info()["project_title"].strip()
     db_backup_proj_name = db.run_select_query(
         "SELECT project_name FROM backup_info_RedCap"
     )
+
     if not db_backup_proj_name:
         db.run_insert_query(
             "INSERT INTO backup_info_RedCap (project_name) VALUES (%s)", [project_name]
@@ -616,72 +559,129 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
                 f"Live redcap name: {project_name}, database backup name: {db.db_name}.{db_backup_proj_name}"
             )
 
-    start_date = db.run_select_query(
-        """SELECT last_backup FROM backup_info_RedCap WHERE project_name = %s""",
-        [db_backup_proj_name],
-    )
-    if not start_date:
-        start_date = datetime(1900, 1, 1)
-        db.run_insert_query(
-            """INSERT INTO backup_info_RedCap (last_backup) VALUES (%s)""",
-            [start_date],
-        )
-    else:
-        start_date = start_date[0][0]
 
+def get_project_instru_field_map(project: Project) -> dict:
+    """
+    Get dictionary of REDCap `project`'s instruments and its fields.
+
+    Inputs:
+    --------
+    project (Project):
+        REDCap project
+
+    Returns:
+    --------
+    dict:
+        Dictionary of instruments and fields mapping.
+        Example:
+            'Form 1': ['field1', 'field2']
+    """
+    instru_field_map = {}
+    for var in project.metadata:
+        field_name = var["field_name"]
+        instru_name = var["form_name"]
+        if field_name == "record_id":
+            continue  # not necessary. record_id will be created at creation of a patient in redcap
+        if instru_name not in instru_field_map:
+            instru_field_map[instru_name] = []
+        instru_field_map[instru_name].append(var["field_name"])
+
+    for instru in instru_field_map:
+        instru_field_map[instru].append(f"{instru}_complete")
+
+    return instru_field_map
+
+
+def get_repeating_instru(project: Project, instru_field_map: dict):
+    """
+    Get repeating instruments of REDCap `project`.
+
+    Inputs:
+    --------
+    project (Project):
+        REDCap Project.
+
+    instru_field_map (dict)
+        REDCap Project's instrument - field mapping.
+
+    Returns:
+    --------
+    Set:
+        Set of repeating forms
+    """
+    repeating_forms = set()
+    if project.export_project_info()["has_repeating_instruments_or_events"] == 1:
+        repeating_instru_events = [
+            form["form_name"] for form in project.export_repeating_instruments_events()
+        ]
+        for name in instru_field_map:
+            if name in repeating_instru_events:
+                repeating_forms.add(name)
+
+    return repeating_forms
+
+
+def project_data_to_db(db, project: Project, start_date=None, end_date=None):
+    """
+    Exports data from redcap logs into db.
+    Parses through REDCap logs to figure out which records have been changed.
+    Then, check if these records still exist in the current REDCap state.
+    If not, mark these as deleted in the db, if they are in the db,
+
+    Algorithm:
+    -------
+    1. Extract logs from redcap from last successful update to now
+    2. Insert new patients into db if any new patients
+    3. Extract then remove instance, complete, and record_id from logs
+    4. Find crf_name from log questions
+    5. If log variables cannot match a crf_name, add to failed_to_add list,
+       otherwise continue to handle crf
+    6. If crf_row for (patient,crf_name,instance) does not exist, insert new crf_row
+       if exists, update verified/complete if exists and differs from log
+    7. Insert data into crf_data_redcap
+    8. If any logs failed to add, raise error with failed_to_add list
+    9. Update last export time in backup_info_RedCap
+
+    Note: if a log appears in redcap, but not through the api, this is normal, the api
+          just takes a few minutes
+    """
+
+    instru_field_map = get_project_instru_field_map(project)
+    repeating_instru = get_repeating_instru(project, instru_field_map)
+
+    # Grab record logs
     only_record_logs = True
     record_logs = grab_logs(db, project, only_record_logs, start_date, end_date)
 
-    # dictionary of form names and their variables
-    master_form_var_dict = {}
-    for var in project.metadata:
-        if var["field_name"] == "record_id":
-            continue  # not necessary. record_id will be created at creation of a patient in redcap
-        if var["form_name"] not in master_form_var_dict:
-            master_form_var_dict[var["form_name"]] = [var["field_name"]]
-        else:
-            master_form_var_dict[var["form_name"]].append(var["field_name"])
-    for form in [f["instrument_name"] for f in project.export_instruments()]:
-        master_form_var_dict[form].append(f"{form}_complete")
-
-    # repeating form collection
-    form_names = [form["instrument_name"] for form in project.export_instruments()]
-    repeating_forms = []
-    if project.export_project_info()["has_repeating_instruments_or_events"] == 1:
-        rep_forms = [
-            form["form_name"] for form in project.export_repeating_instruments_events()
-        ]
-        for name in form_names:
-            if name in rep_forms:
-                repeating_forms.append(name)
-
-    # loop through record_logs and add to db
+    # Loop through record_logs and update db
     failed_to_add = []
     for i, log in tqdm(
         enumerate(record_logs), total=len(record_logs), desc="Adding data logs to db"
     ):
         if log["details"] == "":  # no changes to record
             continue
-        # log deleting a record
-        if "Delete record" in log["action"]:
-            patient_name = log["action"].split(" ")[-1].strip()
-            patient_id = str(
-                db.run_select_query(
-                    """SELECT id FROM patients WHERE patient_name = %s""",
-                    [patient_name],
-                )[0][0]
-            )
+
+        log_instance = REDCapLog(
+            project, log["action"], log["timestamp"], log["details"]
+        )
+
+        patient_name = log_instance.patient_name
+        action = log_instance.get_action()
+
+        patient_id = db.run_select_query(
+            """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
+        )
+
+        # Set subject to be deleted in db if log says delete
+        if action == "DELETE":
+            patient_id = patient_id[0][0]
             db.run_insert_query(
                 """UPDATE CRF_RedCap SET deleted = 1 WHERE id_patient = %s""",
                 [patient_id],
             )
             continue
 
-        # list of current patients in db to check if there is a new patient
-        patient_name = log["action"].split(" ")[-1].strip()
-        patient_id = db.run_select_query(
-            """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
-        )
+        # Check if there is a new patient
         if not patient_id:
             patient_id = db.run_insert_query(
                 """INSERT INTO patients (patient_name, patient_id) VALUES (%s, %s)""",
@@ -690,32 +690,15 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
         else:
             patient_id = patient_id[0][0]
 
-        # Process log details from string into dictionary.
-        instance = None
-        details = extract_details(log["details"] + ",")
-        crf_name = None
+        instance = log_instance.get_instance()
+        crf_name = log_instance.get_crf_name(instru_field_map)
 
-        # Grab instance if in details
-        if "[instance]" in details:
-            # If the log contains the instance number and nothing else, no other data was changed
-            if len(details) == 1:
-                continue
-            instance = details["[instance]"]
-
-        # Get CRF
-        for form, vars in master_form_var_dict.items():
-            for form_var in vars:
-                regex = rf"^{form_var}(\([a-zA-z0-9]*\.?[a-zA-z0-9]*\))?$"  # Handles multi choice var
-                for detail_var in details:
-                    if re.fullmatch(regex, detail_var):
-                        crf_name = form
         if not crf_name:
-            failed_to_add.append(
-                (patient_name, log["timestamp"], f"redcap_variables: {log}")
-            )
+            failed_to_add.append(log_instance)
             continue
 
-        if (instance is None) and (crf_name in repeating_forms):
+        # If the log does not specify the instance and it is a repeating form, then instance = 1
+        if (instance is None) and (crf_name in repeating_instru):
             instance = 1
 
         crf_row = pd.DataFrame(
@@ -725,19 +708,31 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
                 column_names=True,
             )
         )  # cant use run_select_query.record here, because ('IS NULL' or '= #') is not a valid sql variable
-        record_df = export_records_wrapper(project, patient_name, crf_name, instance)
 
-        if record_df.empty and crf_row.empty:  # deleted record in redcap not in db
+        # Get current state of REDCap data for patient_name
+        record_df = export_records_wrapper(
+            db=db,
+            project=project,
+            log=log_instance,
+            patient_name=patient_name,
+            crf_name=crf_name,
+            instance=instance,
+        )
+
+        # Deleted record in redcap not in db
+        if record_df.empty and crf_row.empty:
             continue
 
-        elif record_df.empty and not crf_row.empty:  # deleted record in redcap in db
+        # Deleted record in redcap in db
+        elif record_df.empty and not crf_row.empty:
             deleted = 1
             db.run_insert_query(
                 """UPDATE CRF_RedCap SET deleted = %s WHERE id = %s""",
                 [deleted, str(crf_row["id"].iloc[0])],
             )
 
-        elif not record_df.empty:  # data to enter
+        # Data to enter
+        elif not record_df.empty:
             # preprocess record_df for data insertion/update
             irrelevant_columns = {
                 "redcap_repeat_instrument",
@@ -825,29 +820,39 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
 
     # After trying to add all the logs, if there are any logs with questions not attached
     # to a current crf (outdated variable), they will be printed to an error string
+
     if failed_to_add:
-        failed_string = ""
-        failed_string = failed_string + "------------------------------------\n"
-        failed_string = (
-            failed_string + f"data export date: {datetime.now().strftime('%Y-%m-%d')}\n"
-        )
+        failed_to_add_str = """
+        ##############\n
+        #\t   Failed to add the following logs:\n
+        #  
+        """
         for log in failed_to_add:
-            failed_string = failed_string + "------------\n"
-            failed_string = failed_string + f"Patient_name: {log[0]}\n"
-            failed_string = failed_string + f"Date of redcap entry: {log[1]}\n"
-            failed_string = failed_string + f"REDCap variable(s) : {log[2]}\n"
+            failed_to_add_str += f"""\n
+            #\t   Patient:  {log.patient_name} \n
+            #\t   Action:   {log.action} \n
+            #\t   Details:  {log.details}  \n  
+            #
+            """
+            log_to_db(
+                db=db,
+                src=log,
+                level="WARNING",
+                msg=f"""Could not find form that the variables belong to.
+                All of the variables might be outdated.
+                Variables: {log.variables}
 
-        # this class is a solution I found to get the failed_string to print newline characters
-        class KeyErrorMessage(str):
-            def __repr__(self):
-                return str(self)
+                Potential reasons:
+                1. The variables and the Instrument were both deleted.
+                2. Only the variables' were deleted.
+                3. The variables' names changed.""",
+            )
 
-        msg = KeyErrorMessage(failed_string)
-        raise KeyError(msg)
+        failed_to_add_str += "\n##############"
+        logging.info(failed_to_add_str)
 
-    # except Exception as e:
-    #     print(f"Error backing up RedCap data: {e}")
-
+    # Update project backup info
+    project_name = project.export_project_info()["project_title"].strip()
     db.run_insert_query(
         "UPDATE backup_info_RedCap SET last_backup = %s WHERE project_name = %s",
         [datetime.now(), project_name],
@@ -855,8 +860,8 @@ def project_data_to_db(db, project, start_date=None, end_date=None):
 
 
 # using main for testing purposes, manual backups
-if __name__ == "__main__":
-    import AMBRA_Backups_dans
+if __name__ == "__main__":  #
+    import AMBRA_Backups
 
     testing = 0
     db_name = "CAPTIVA"

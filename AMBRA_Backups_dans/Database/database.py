@@ -602,6 +602,7 @@ class Database:
 
             update_study_query = f"""
             UPDATE studies SET
+            id_patient = %s,
             attachment_count = %s,
             series_count = %s,
             uuid = %s,
@@ -618,8 +619,16 @@ class Database:
             WHERE id = %s;
             """
 
+            id_patient = self.run_select_query(
+                """
+                SELECT id FROM patients WHERE patient_name = %s
+            """,
+                record=(study.patient_name,),
+            )[0][0]
+
             study_record = (
                 (
+                    id_patient,
                     study.attachment_count,
                     len(list(study.get_series())),
                     study.uuid,

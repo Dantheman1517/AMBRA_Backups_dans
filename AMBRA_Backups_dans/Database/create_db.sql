@@ -432,3 +432,12 @@ CREATE TABLE `study_tags` (
   UNIQUE KEY `study_tags_id_study_unq` (`id_study`,`tag_group`,`tag_element`),
   KEY `fk_study_tags_1_idx` (`id_study`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12973 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `airflow_logs`;
+CREATE TABLE `airflow_logs` (
+              `id` INT NOT NULL AUTO_INCREMENT,
+              `message` VARCHAR(1024) NULL,
+              `type` VARCHAR(45) NULL,
+              `message_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=12973 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
