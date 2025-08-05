@@ -694,7 +694,6 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
         # Set subject to be deleted in db if log says delete
         if action == "DELETE":
-            patient_id = patient_id[0][0]
             db.run_insert_query(
                 """UPDATE CRF_RedCap SET deleted = 1 WHERE id_patient = %s""",
                 [patient_id],
