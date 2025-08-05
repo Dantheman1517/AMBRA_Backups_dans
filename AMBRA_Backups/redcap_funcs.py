@@ -682,7 +682,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         patient_id = db.run_select_query(
             """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
         )
-        
+
         # Check if there is a new patient
         if not patient_id:
             patient_id = db.run_insert_query(
@@ -700,7 +700,6 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                 [patient_id],
             )
             continue
-
 
         instance = log_instance.get_instance()
         crf_name = log_instance.get_crf_name(instru_field_map)
