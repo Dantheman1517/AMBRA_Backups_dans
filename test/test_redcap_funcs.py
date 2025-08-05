@@ -137,7 +137,7 @@ def test_delete_record(mocker, db, project):
     patient_name = "patient_delete"
     mock = create_mock(patient_name, "Delete")
     mock_log = mock["mock_log"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Create patient and CRF patient
     id_patient = get_id_patient(db, patient_name)
@@ -180,7 +180,7 @@ def test_update_record_not_redcap_not_db(mocker, db, project):
     patient_name = "patient_not_redcap_not_db"
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Create patient and CRF patient
     id_patient = get_id_patient(db, patient_name)
@@ -258,7 +258,7 @@ def test_update_record_not_redcap_in_db(mocker, db, project):
     # not_in_redcap
     project.delete_records(records=[patient_name])
 
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Call f
     AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
@@ -304,7 +304,7 @@ def test_update_record_in_redcap_not_db(mocker, db, project):
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
     mock_record = mock["mock_record"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Change the record on redcap based on mock
     project.import_records([mock_record])
@@ -379,7 +379,7 @@ def test_update_record_in_redcap_in_db(mocker, db, project):
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
     mock_record = mock["mock_record"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Change the record on redcap based on mock
     project.import_records([mock_record])

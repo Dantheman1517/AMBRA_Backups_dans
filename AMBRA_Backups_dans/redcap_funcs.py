@@ -9,10 +9,10 @@ import configparser
 import json
 import numpy as np
 
-from AMBRA_Backups import utils
-from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
+from AMBRA_Backups_dans import utils
+from AMBRA_Backups_dans.redcap_log import REDCapLog
 import AMBRA_Backups
-from AMBRA_Backups.utils import log_to_db
+from AMBRA_Backups_dans.utils import log_to_db
 
 
 def get_config(config_path=None):
