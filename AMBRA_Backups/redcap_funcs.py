@@ -628,6 +628,17 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
     Then, check if these records still exist in the current REDCap state.
     If not, mark these as deleted in the db, if they are in the db,
 
+    Inputs:
+    --------
+    db (Database):
+        Database to insert data into.
+    project (Project):
+        REDCap project to extract data from.
+    start_date (datetime, optional):
+        Start date for log extraction. Defaults to None, which will use the last successful update time.
+    end_date (datetime, optional):
+        End date for log extraction. Defaults to None, which will use the current time.
+
     Algorithm:
     -------
     1. Extract logs from redcap from last successful update to now
