@@ -78,11 +78,7 @@ class Database:
         """ """
         config = cls.get_config(config_path=config_path)
 
-        if 'test_db' in db_name:
-            db_config = config[db_name.split(',')[0].strip()]
-            db_name = db_name.split(',')[1].strip()
-        else:    
-            db_config = config["ambra_backup"]
+        db_config = config[db_name]
 
         retry_num = 0
         while retry_num < n_retries:
