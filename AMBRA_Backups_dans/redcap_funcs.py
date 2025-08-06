@@ -691,7 +691,6 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         else:
             patient_id = patient_id[0][0]
 
-        print(patient_id)
         # Set subject to be deleted in db if log says delete
         if action == "DELETE":
             db.run_insert_query(
@@ -711,6 +710,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         # If the log does not specify the instance and it is a repeating form, then instance = 1
         if (instance is None) and (crf_name in repeating_instru):
             instance = 1
+        print(instance)
 
         crf_row = pd.DataFrame(
             db.run_select_query(
