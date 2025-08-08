@@ -27,12 +27,15 @@ class REDCapLog:
             The log's details string.
         """
         self.project = project
-        self.patient_name = action.split(" ")[-1].strip()
+        self.patient_name = self._extract_patient_name(action)
         self.action = action
         self.timestamp = timestamp
         self.original_details = details
         self.details = self.extract_details()
         self.variables = list(self.details.keys())
+        
+        # Parse arm and event information for longitudinal projects
+        self._parse_arm_event_info()
 
     # --------------------------------------------------------------------------
     def extract_details(self):
@@ -184,3 +187,113 @@ class REDCapLog:
             return "DELETE"
         if "Create record" in action:
             return "CREATE"
+
+    # --------------------------------------------------------------------------
+    def _parse_arm_event_info(self):
+        """
+        Parse arm and event information from action string for longitudinal projects.
+        Implements logic for determining arm_name and event_name based on project structure.
+        """
+        try:
+            # Check if project is longitudinal
+            project_info = self.project.export_project_info()
+            is_longitudinal = project_info.get('is_longitudinal', 0)
+            
+            if is_longitudinal:
+                # Get arms
+                arms = self.project.export_arms()
+                
+                if len(arms) > 1:
+                    # Parse arm name from action
+                    self.arm_name = self._parse_arm_from_action(arms)
+                elif len(arms) == 1:
+                    # Use the single arm's name
+                    self.arm_name = arms[0].get('name', f"Arm {arms[0]['arm_num']}")
+                else:
+                    raise Exception('Project is longitudinal, but no arms. IMPOSSIBLE!!!')
+                
+                if 'delete' in self.action.lower():
+                    # If the action is to delete, only the arm is needed to be specified
+                    self.event_name = None
+                else:
+                    # Get events
+                    events = self.project.export_events()
+                    
+                    if len(events) > 1:
+                        # Parse event name from action
+                        self.event_name = self._parse_event_from_action(events)
+                    elif len(events) == 1:
+                        # Use the single event's name
+                        self.event_name = events[0].get('event_name')
+                    else:
+                        raise Exception('Project is longitudinal, but no events. IMPOSSIBLE!!!')
+            else:
+                self.arm_name = None
+                self.event_name = None
+                
+        except Exception as e:
+            # If there's any error in parsing, set defaults and continue
+            print(f"Warning: Error parsing arm/event info: {e}")
+            self.arm_name = None
+            self.event_name = None
+    
+    # --------------------------------------------------------------------------
+    def _parse_arm_from_action(self, arms):
+        """
+        Parse arm name from action string.
+        Example: "Create record 1 (Event 1 (Arm 1: Arm 1))" -> "Arm 1"
+        """
+        # Look for pattern like "(Arm X: Arm Name)"
+        arm_pattern = r'\(Arm (\d+): ([^)]+)\)'
+        match = re.search(arm_pattern, self.action)
+        
+        if match:
+            arm_num = int(match.group(1))
+            arm_name = match.group(2)
+            return arm_name
+        
+        # Fallback: try to find arm by number in parentheses
+        for arm in arms:
+            if f"Arm {arm['arm_num']}" in self.action:
+                return arm.get('name', f"Arm {arm['arm_num']}")
+        
+        # Default to first arm if no match found
+        return arms[0].get('name', f"Arm {arms[0]['arm_num']}")
+    
+    # --------------------------------------------------------------------------
+    def _parse_event_from_action(self, events):
+        """
+        Parse event name from action string.
+        Example: "Create record 1 (Event 1 (Arm 1: Arm 1))" -> "Event 1"
+        """
+        # Look for pattern like "(Event Name (Arm X: Arm Name))"
+        event_pattern = r'\(([^(]+) \(Arm \d+:'
+        match = re.search(event_pattern, self.action)
+        
+        if match:
+            event_name = match.group(1).strip()
+            return event_name
+        
+        # Fallback: look for any event name mentioned in action
+        for event in events:
+            if event['event_name'] in self.action:
+                return event['event_name']
+        
+        # Default to first event if no match found
+        return events[0].get('event_name')
+    
+    # --------------------------------------------------------------------------
+    def _extract_patient_name(self, action):
+        """
+        Extract patient/record ID from action string.
+        Example: "Create record 1 (Event 1 (Arm 1: Arm 1))" -> "1"
+        """
+        # Look for pattern like "record X" where X is the record ID
+        record_pattern = r'record (\w+)'
+        match = re.search(record_pattern, action)
+        
+        if match:
+            return match.group(1)
+        
+        # Fallback to original method
+        return action.split(" ")[-1].strip().rstrip(')')
