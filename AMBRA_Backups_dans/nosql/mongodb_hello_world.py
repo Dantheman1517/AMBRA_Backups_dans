@@ -38,6 +38,43 @@ class MongoDBHelloWorld:
         # Sample documents with different schemas (document store flexibility)
         users = [
             {
+                "name": "Alice Johnson",
+                "email": "alice@example.com",
+                "age": 28,
+                "role": "developer",
+                "skills": ["Python", "JavaScript", "MongoDB"],
+                "created_at": datetime.now(),
+                "profile": {
+                    "bio": "Full-stack developer with 5 years experience",
+                    "location": "San Francisco, CA"
+                }
+            },
+            {
+                "name": "Bob Smith",
+                "email": "bob@example.com",
+                "age": 35,
+                "role": "manager",
+                "department": "Engineering",
+                "created_at": datetime.now(),
+                "team_size": 8,
+                "projects": ["Project A", "Project B"]
+            },
+            {
+                "name": "Carol Davis",
+                "email": "carol@example.com",
+                "role": "designer",
+                "portfolio": "https://caroldesigns.com",
+                "created_at": datetime.now(),
+                "specialties": ["UI/UX", "Graphic Design"]
+            }
+        ]
+        
+        # Insert multiple documents
+        result = self.collection.insert_many(users)
+        print(f"Inserted {len(result.inserted_ids)} documents")
+        print("Document IDs:", [str(id) for id in result.inserted_ids])
+        users = [
+            {
                 "_id": 1,
                 "name": "Alice Johnson",
                 "email": "alice@example.com",
@@ -93,6 +130,28 @@ class MongoDBHelloWorld:
             print(f"✗ Error inserting documents: {e}")
     
     def find_documents(self) -> None:
+        """Demonstrate various query operations."""
+        print("\n=== Finding Documents ===")
+        
+        # Find all documents
+        print("All users:")
+        for user in self.collection.find():
+            print(f"  - {user['name']} ({user['email']})")
+        
+        # Find with filter
+        print("\nDevelopers:")
+        for user in self.collection.find({"role": "developer"}):
+            print(f"  - {user['name']}: {user.get('skills', [])}")
+        
+        # Find with projection (only specific fields)
+        print("\nNames and emails only:")
+        for user in self.collection.find({}, {"name": 1, "email": 1, "_id": 0}):
+            print(f"  - {user['name']}: {user['email']}")
+        
+        # Find one document
+        alice = self.collection.find_one({"name": "Alice Johnson"})
+        if alice:
+            print(f"\nFound Alice: {alice['email']}")
         """Demonstrate various find operations."""
         print("\n=== Finding Documents ===")
         
@@ -122,6 +181,37 @@ class MongoDBHelloWorld:
             print(f"  - {user['name']}")
     
     def update_documents(self) -> None:
+        """Demonstrate update operations."""
+        print("\n=== Updating Documents ===")
+        
+        # Update one document
+        result = self.collection.update_one(
+            {"name": "Alice Johnson"},
+            {"$set": {"age": 29, "last_updated": datetime.now()}}
+        )
+        print(f"Updated {result.modified_count} document(s)")
+        
+        # Update many documents
+        result = self.collection.update_many(
+            {"role": "developer"},
+            {"$push": {"skills": "Docker"}}
+        )
+        print(f"Added Docker skill to {result.modified_count} developer(s)")
+        
+        # Upsert (insert if not exists)
+        result = self.collection.update_one(
+            {"name": "David Wilson"},
+            {
+                "$set": {
+                    "email": "david@example.com",
+                    "role": "analyst",
+                    "created_at": datetime.now()
+                }
+            },
+            upsert=True
+        )
+        if result.upserted_id:
+            print(f"Upserted new document with ID: {result.upserted_id}")
         """Demonstrate document updates."""
         print("\n=== Updating Documents ===")
         
@@ -154,6 +244,27 @@ class MongoDBHelloWorld:
         print(f"✓ Added certification to {result.modified_count} document(s)")
     
     def aggregate_documents(self) -> None:
+        """Demonstrate aggregation pipeline."""
+        print("\n=== Aggregating Data ===")
+        
+        # Count documents by role
+        pipeline = [
+            {"$group": {"_id": "$role", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]
+        
+        print("Users by role:")
+        for result in self.collection.aggregate(pipeline):
+            print(f"  - {result['_id']}: {result['count']}")
+        
+        # Average age (where age exists)
+        pipeline = [
+            {"$match": {"age": {"$exists": True}}},
+            {"$group": {"_id": None, "avg_age": {"$avg": "$age"}}}
+        ]
+        
+        for result in self.collection.aggregate(pipeline):
+            print(f"\nAverage age: {result['avg_age']:.1f}")
         """Demonstrate aggregation pipeline."""
         print("\n=== Aggregation Examples ===")
         
@@ -190,6 +301,16 @@ class MongoDBHelloWorld:
             print(f"  - {result['_id']}: {result['count']} users")
     
     def delete_documents(self) -> None:
+        """Demonstrate delete operations."""
+        print("\n=== Deleting Documents ===")
+        
+        # Delete one document
+        result = self.collection.delete_one({"name": "David Wilson"})
+        print(f"Deleted {result.deleted_count} document(s)")
+        
+        # Delete many documents (uncomment to test)
+        # result = self.collection.delete_many({"role": "manager"})
+        # print(f"Deleted {result.deleted_count} manager(s)")
         """Demonstrate document deletion."""
         print("\n=== Deleting Documents ===")
         
@@ -203,6 +324,21 @@ class MongoDBHelloWorld:
             print(f"  - {user['name']}")
     
     def demonstrate_indexes(self) -> None:
+        """Demonstrate index creation and usage."""
+        print("\n=== Creating Indexes ===")
+        
+        # Create single field index
+        self.collection.create_index("email")
+        print("Created index on 'email' field")
+        
+        # Create compound index
+        self.collection.create_index([("role", 1), ("age", -1)])
+        print("Created compound index on 'role' and 'age'")
+        
+        # List indexes
+        print("Current indexes:")
+        for index in self.collection.list_indexes():
+            print(f"  - {index['name']}: {index.get('key', {})}")
         """Demonstrate index creation for performance."""
         print("\n=== Index Management ===")
         
@@ -227,6 +363,20 @@ class MongoDBHelloWorld:
         """Demonstrate text search capabilities."""
         print("\n=== Text Search ===")
         
+        # Create text index
+        try:
+            self.collection.create_index([("name", "text"), ("profile.bio", "text")])
+            print("Created text index")
+            
+            # Perform text search
+            results = list(self.collection.find({"$text": {"$search": "developer"}}))
+            print(f"Found {len(results)} documents matching 'developer'")
+            
+        except Exception as e:
+            print(f"Text search error (may already exist): {e}")
+        """Demonstrate text search capabilities."""
+        print("\n=== Text Search ===")
+        
         # Search for text
         results = self.collection.find({"$text": {"$search": "data scientist"}})
         print("Search results for 'data scientist':")
@@ -234,6 +384,12 @@ class MongoDBHelloWorld:
             print(f"  - {user['name']}: {user['profile']['bio']}")
     
     def cleanup(self) -> None:
+        """Clean up - drop the collection."""
+        print("\n=== Cleanup ===")
+        self.collection.drop()
+        print("Dropped collection")
+        self.client.close()
+        print("Closed database connection")
         """Clean up - drop the collection."""
         print("\n=== Cleanup ===")
         self.collection.drop()
