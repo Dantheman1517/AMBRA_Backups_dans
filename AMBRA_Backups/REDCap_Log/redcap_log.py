@@ -27,12 +27,13 @@ class REDCapLog:
             The log's details string.
         """
         self.project = project
-        self.patient_name = action.split(" ")[-1].strip()
-        self.action = action
+        self.patient_name = re.search('[0-9]+', action).group()
+        self.action = action.split('(', 1)[0].strip()
         self.timestamp = timestamp
         self.original_details = details
         self.details = self.extract_details()
         self.variables = list(self.details.keys())
+        self.arm_num = re.search("(?<=Arm\s)\d+(?=:)", action).group(0)
 
     # --------------------------------------------------------------------------
     def extract_details(self):

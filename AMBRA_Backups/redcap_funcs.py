@@ -473,7 +473,7 @@ def grab_logs(db, project: Project, only_record_logs, start_date=None, end_date=
 
 
 def export_records_wrapper(
-    db, project: Project, log: REDCapLog, patient_name, crf_name, instance
+    db, project: Project, log: REDCapLog, patient_name, crf_name, instance, arm_num
 ):
     """
     wrapper is necessary because of a export_record bug. If a repeating instance form is
@@ -484,6 +484,10 @@ def export_records_wrapper(
     form_df = pd.DataFrame(
         project.export_records(records=[patient_name], forms=[crf_name])
     )
+
+    # Filter df for correct arm
+    events = project.export_events()
+    form_df = form_df[form_df['redcap_event_name'].str.match(rf'.*_arm_{arm_num}$')]
 
     if form_df.empty:
         return form_df
@@ -521,6 +525,9 @@ def export_records_wrapper(
             # raise ValueError(f"""Instance: {instance} not of available instances: {form_df["redcap_repeat_instance"].to_list()}
             #    \nIn project: {project.export_project_info()["project_title"]}, crf_name: {crf_name}, patient_name: {patient_name}""")
         form_df = form_df[form_df["redcap_repeat_instance"] == instance]
+
+    # Add arm number to df
+    form_df["arm_num"] = arm_num
     return form_df
 
 
@@ -678,6 +685,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
         patient_name = log_instance.patient_name
         action = log_instance.get_action()
+        arm_num = log_instance.arm_num
 
         patient_id = db.run_select_query(
             """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
@@ -714,7 +722,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         crf_row = pd.DataFrame(
             db.run_select_query(
                 f"""SELECT * FROM CRF_RedCap WHERE id_patient = {patient_id} AND crf_name = \'{crf_name}\' 
-                                    AND instance {"IS NULL" if instance is None else f"= {instance}"} AND deleted = '0'""",
+                                    AND instance {"IS NULL" if instance is None else f"= {instance}"} AND arm_num = \'{arm_num}/' AND deleted = '0'""",
                 column_names=True,
             )
         )  # cant use run_select_query.record here, because ('IS NULL' or '= #') is not a valid sql variable
@@ -727,6 +735,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
             patient_name=patient_name,
             crf_name=crf_name,
             instance=instance,
+            arm_num=arm_num
         )
 
         # Deleted record in redcap not in db
@@ -774,8 +783,8 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                     ):
                         verified = 1
                         db.run_insert_query(
-                            """UPDATE CRF_RedCap SET verified = %s WHERE id = %s""",
-                            [verified, str(crf_row["id"].iloc[0])],
+                            """UPDATE CRF_RedCap SET verified = %s, arm_num = %s WHERE id = %s""",
+                            [verified, arm_num, str(crf_row["id"].iloc[0])],
                         )
                 crf_id = crf_row["id"].iloc[0]
                 record_df["id_crf"] = crf_id
@@ -785,10 +794,13 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                     [crf_id.item()],
                 )
                 db_vars = [v[0] for v in db_vars]
+                arm_num = record_df.loc[record_df["redcap_variable"] == "arm_num", "value"].iloc[0]
                 for _, row in record_df.iterrows():
                     if row["redcap_variable"] in db_vars:
                         db.run_insert_query(
-                            "UPDATE CRF_Data_RedCap SET value = %s WHERE id_crf = %s AND redcap_variable = %s",
+                            "UPDATE CRF_Data_RedCap JOIN CRF_RedCap " \
+                            "ON CRF_Data_RedCap.id_crf = CRF_RedCap.id " \
+                            "SET value = %s WHERE id_crf = %s AND redcap_variable = %s",
                             [row["value"], crf_id.item(), row["redcap_variable"]],
                         )
                     else:
@@ -797,7 +809,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                         # after api initializations crf data, the data is only updated, not inserted. So existing crf data before this implementation will never
                         # have their new values inserted, thus this else condition inserts the missing data
                         db.run_insert_query(
-                            """INSERT INTO CRF_Data_RedCap (id_crf, value, redcap_variable) VALUES (%s, %s, %s)""",
+                            """INSERT INTO CRF_Data_RedCap (id_crf, value, redcap_variable, arm_num) VALUES (%s, %s, %s)""",
                             [crf_id.item(), row["value"], row["redcap_variable"]],
                         )
 
@@ -819,9 +831,9 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                     ):
                         verified = 1
                 crf_id = db.run_insert_query(
-                    """INSERT INTO CRF_RedCap (id_patient, crf_name, instance, deleted, verified)
-                                    VALUES (%s, %s, %s, %s, %s)""",
-                    [patient_id, crf_name, instance, deleted, verified],
+                    """INSERT INTO CRF_RedCap (id_patient, crf_name, instance, deleted, verified, arm_num)
+                                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                    [patient_id, crf_name, instance, deleted, verified, arm_num],
                 )
                 record_df["id_crf"] = crf_id
 
