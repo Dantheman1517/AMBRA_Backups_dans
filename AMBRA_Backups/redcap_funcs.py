@@ -473,7 +473,7 @@ def grab_logs(db, project: Project, only_record_logs, start_date=None, end_date=
 
 
 def export_records_wrapper(
-    db, project: Project, log: REDCapLog, patient_name, crf_name, instance, arm_num
+    db, project: Project, log: REDCapLog, patient_name, crf_name, instance, arm_num = 0
 ):
     """
     wrapper is necessary because of a export_record bug. If a repeating instance form is
@@ -487,7 +487,9 @@ def export_records_wrapper(
 
     # Filter df for correct arm
     events = project.export_events()
-    form_df = form_df[form_df['redcap_event_name'].str.match(rf'.*_arm_{arm_num}$')]
+
+    if(project.is_longitudinal()):
+        form_df = form_df[form_df['redcap_event_name'].str.match(rf'.*_arm_{arm_num}$')]
 
     if form_df.empty:
         return form_df
@@ -527,7 +529,8 @@ def export_records_wrapper(
         form_df = form_df[form_df["redcap_repeat_instance"] == instance]
 
     # Add arm number to df
-    form_df["arm_num"] = arm_num
+    if(project.is_longitudinal()):
+        form_df["arm_num"] = arm_num
     return form_df
 
 
@@ -685,7 +688,8 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
         patient_name = log_instance.patient_name
         action = log_instance.get_action()
-        arm_num = log_instance.arm_num
+        if(project.is_longitudinal()):
+            arm_num = log_instance.arm_num
 
         patient_id = db.run_select_query(
             """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
@@ -728,15 +732,27 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         )  # cant use run_select_query.record here, because ('IS NULL' or '= #') is not a valid sql variable
 
         # Get current state of REDCap data for patient_name
-        record_df = export_records_wrapper(
-            db=db,
-            project=project,
-            log=log_instance,
-            patient_name=patient_name,
-            crf_name=crf_name,
-            instance=instance,
-            arm_num=arm_num
-        )
+        # Pass arm_num only if arms are enabled
+        if(project.is_longitudinal()):
+            record_df = export_records_wrapper(
+                db=db,
+                project=project,
+                log=log_instance,
+                patient_name=patient_name,
+                crf_name=crf_name,
+                instance=instance,
+                arm_num=arm_num
+            )
+        else:
+            record_df = export_records_wrapper(
+                db=db,
+                project=project,
+                log=log_instance,
+                patient_name=patient_name,
+                crf_name=crf_name,
+                instance=instance,
+                arm_num=arm_num
+            )
 
         # Deleted record in redcap not in db
         if record_df.empty and crf_row.empty:
@@ -782,10 +798,16 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
                         == "5"
                     ):
                         verified = 1
-                        db.run_insert_query(
-                            """UPDATE CRF_RedCap SET verified = %s, arm_num = %s WHERE id = %s""",
-                            [verified, arm_num, str(crf_row["id"].iloc[0])],
-                        )
+                        if(project.is_longitudinal()):
+                            db.run_insert_query(
+                                """UPDATE CRF_RedCap SET verified = %s, arm_num = %s WHERE id = %s""",
+                                [verified, arm_num, str(crf_row["id"].iloc[0])],
+                            )
+                        else:
+                            db.run_insert_query(
+                                """UPDATE CRF_RedCap SET verified = %s WHERE id = %s""",
+                                [verified, str(crf_row["id"].iloc[0])],
+                            )
                 crf_id = crf_row["id"].iloc[0]
                 record_df["id_crf"] = crf_id
 
