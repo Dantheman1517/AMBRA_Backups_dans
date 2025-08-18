@@ -299,7 +299,7 @@ def test_update_record_in_redcap_not_db(mocker, db, project):
     3. Call f
     4. Compare data between mock vs. db
     """
-    # Mock
+    # Mock asdf
     patient_name = "patient_update_in_redcap_not_db"
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
