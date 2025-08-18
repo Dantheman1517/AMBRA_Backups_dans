@@ -60,8 +60,9 @@ def get_id_patient(db, patient_name):
     return id_patient
 
 
-def create_mock(patient_name, action):
+def create_mock(patient_name, action, mock_configs={}):
     """Create a mock log based on patient_name and action."""
+
     # Mock record
     choices = ["1", "2", "3"]
     dropdown_input = random.choice(choices)
@@ -69,8 +70,6 @@ def create_mock(patient_name, action):
     text_input = generate_random_input()
     mock_record = {
         "record_id": patient_name,
-        "redcap_repeat_instance": 1,
-        "redcap_repeat_instrument": form_input,
         "pytest_dropdown": dropdown_input,
         "pytest_radio": radio_input,
         "pytest_text": text_input,
@@ -82,10 +81,33 @@ def create_mock(patient_name, action):
     mock_log = {
         "timestamp": timestamp,
         "username": test_user,
-        "action": f"{action.title()} record {patient_name}",
         "record": patient_name,
     }
     details = ""
+
+    if "is_longitudinal" mock_configs:
+
+        if mock_configs.get("num_of_arms", False):
+            if not mock_configs.get("arm_num", False):
+                raise ValueError("arm_num must be provided if num_of_arms is set")
+            
+            arm_num = mock_configs["arm_num"]
+
+            if mock_configs["num_of_arms"] > 1:
+                mock_log['action'] = f'Create record {patient_name} (Event 1 (Arm {arm_num}: Arm 1))'
+            if mock_configs["num_of_arms"] == 1:
+                mock_log['action'] = f'Create record {patient_name} (Event 1 (Arm {arm_num}: Arm 1))'
+                
+        if mock_configs.get("is_repeating", False):
+        
+            mock_record["redcap_repeat_instrument"] = "repeats_instrument_name"
+            mock_record["redcap_repeat_instance"] = 1
+
+            mock_log['action'] = ''
+
+
+
+
 
     skip_variables = {"redcap_repeat_instance", "redcap_repeat_instrument"}
     for var in mock_record:
@@ -286,7 +308,14 @@ def test_update_record_not_redcap_in_db(mocker, db, project):
     )
 
 
-def test_update_record_in_redcap_not_db(mocker, db, project):
+def test_proj_configs(mocker, db, project):
+    
+    
+    test_update_record_in_redcap_not_db(mocker, db, project, mock_configs={'is_longitudinal' : True, 'arm_num' : 1})
+    test_update_record_in_redcap_not_db(mocker, db, project, mock_configs={'is_longitudinal' : True, 'arm_num' : 1})
+
+
+def test_update_record_in_redcap_not_db(mocker, db, project, mock_configs):
     """
     Condition for mock log:
     1. "Update record" in details
@@ -299,9 +328,9 @@ def test_update_record_in_redcap_not_db(mocker, db, project):
     3. Call f
     4. Compare data between mock vs. db
     """
-    # Mock asdf asdf
+    # Mock 
     patient_name = "patient_update_in_redcap_not_db"
-    mock = create_mock(patient_name, "Update")
+    mock = create_mock(patient_name, "Update", mock_configs=mock_configs)
     mock_log = mock["mock_log"]
     mock_record = mock["mock_record"]
     mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
