@@ -4,7 +4,7 @@ with open("README.md", "r") as fopen:
     long_description = fopen.read()
 
 setuptools.setup(
-    name="AMBRA_Backups",
+    name="AMBRA_Backups_dans",
     version="0.1",
     description="Various utility classes for connecting to the AMBRA API and backing up study data.",
     long_description=long_description,

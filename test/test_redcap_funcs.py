@@ -2,7 +2,7 @@
 Simple Test Module for redcap_funcs
 """
 
-import AMBRA_Backups
+import AMBRA_Backups_dans
 from datetime import datetime
 import pytest
 import random
@@ -15,14 +15,14 @@ form_input = "please_dont_edit_form_for_testing"
 @pytest.fixture
 def db():
     db_name = "playground"
-    db = AMBRA_Backups.database.Database(db_name)
+    db = AMBRA_Backups_dans.database.Database(db_name)
     return db
 
 
 @pytest.fixture
 def project():
     project_name = "14102 Khandwala-Radiology Imaging Services Core Lab Workflow"
-    project = AMBRA_Backups.redcap_funcs.get_redcap_project(project_name)
+    project = AMBRA_Backups_dans.redcap_funcs.get_redcap_project(project_name)
     return project
 
 
@@ -206,13 +206,13 @@ def test_delete_record(mocker, db, project):
     patient_name = "patient_delete"
     mock = create_mock(patient_name, "Delete")
     mock_log = mock["mock_log"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Create patient and CRF patient
     id_patient = get_id_patient(db, patient_name)
 
     # Call f
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
     patient_crf_data = db.run_select_query(
         f"""SELECT deleted FROM CRF_RedCap WHERE id_patient = {id_patient}"""
     )
@@ -249,7 +249,7 @@ def test_update_record_not_redcap_not_db(mocker, db, project):
     patient_name = "patient_not_redcap_not_db"
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Create patient and CRF patient
     id_patient = get_id_patient(db, patient_name)
@@ -267,7 +267,7 @@ def test_update_record_not_redcap_not_db(mocker, db, project):
     )
 
     # Call f
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # Get current data from database
     current_patient_data = db.run_select_query(
@@ -327,10 +327,10 @@ def test_update_record_not_redcap_in_db(mocker, db, project):
     # not_in_redcap
     project.delete_records(records=[patient_name])
 
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Call f
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # Check for deletion
     crf_row = pd.DataFrame(
@@ -373,7 +373,7 @@ def test_update_record_in_redcap_not_db(mocker, db, project, mock_configs):
     mock = create_mock(patient_name, "Update", mock_configs=mock_configs)
     mock_log = mock["mock_log"]
     mock_record = mock["mock_record"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Change the record on redcap based on mock
     project.import_records([mock_record])
@@ -384,7 +384,7 @@ def test_update_record_in_redcap_not_db(mocker, db, project, mock_configs):
     # Delete patient CRF from CRF_RedCap
     db.run_insert_query("DELETE FROM CRF_RedCap WHERE id_patient = %s", [id_patient])
 
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # Check if CRF_RedCap has correct data
     record_found = db.run_select_query(
@@ -448,12 +448,12 @@ def test_update_record_in_redcap_in_db(mocker, db, project):
     mock = create_mock(patient_name, "Update")
     mock_log = mock["mock_log"]
     mock_record = mock["mock_record"]
-    mocker.patch("AMBRA_Backups.redcap_funcs.grab_logs", return_value=[mock_log])
+    mocker.patch("AMBRA_Backups_dans.redcap_funcs.grab_logs", return_value=[mock_log])
 
     # Change the record on redcap based on mock
     project.import_records([mock_record])
 
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # Check if CRF_RedCap has correct data
     record_found = db.run_select_query(

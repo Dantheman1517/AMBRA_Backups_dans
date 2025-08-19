@@ -9,10 +9,10 @@ import configparser
 import json
 import numpy as np
 
-from AMBRA_Backups import utils
-from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
+from AMBRA_Backups_dans import utils
+from AMBRA_Backups_dans.redcap_log import REDCapLog
 import AMBRA_Backups
-from AMBRA_Backups.utils import log_to_db
+from AMBRA_Backups_dans.utils import log_to_db
 
 
 def get_config(config_path=None):
@@ -249,7 +249,7 @@ def comp_schema_cap_db(db_name, project_name):
     of a dag making a report depending on the db schema(right now just csv reports 8/19/24)
     """
 
-    db = AMBRA_Backups.database.Database(db_name)
+    db = AMBRA_Backups_dans.database.Database(db_name)
     project = get_redcap_project(project_name)
 
     forms = [f["instrument_name"] for f in project.export_instruments()]
@@ -694,7 +694,6 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         patient_id = db.run_select_query(
             """SELECT id FROM patients WHERE patient_name = %s""", [patient_name]
         )
-
         # Check if there is a new patient
         if not patient_id:
             patient_id = db.run_insert_query(
@@ -722,6 +721,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
         # If the log does not specify the instance and it is a repeating form, then instance = 1
         if (instance is None) and (crf_name in repeating_instru):
             instance = 1
+        print(instance)
 
         crf_row = pd.DataFrame(
             db.run_select_query(
@@ -905,7 +905,7 @@ def project_data_to_db(db, project: Project, start_date=None, end_date=None):
 
 # using main for testing purposes, manual backups
 if __name__ == "__main__":  #
-    import AMBRA_Backups
+    import AMBRA_Backups_dans
 
     testing = 0
     db_name = "CAPTIVA"
@@ -913,15 +913,15 @@ if __name__ == "__main__":  #
     # db_name = 'SISTER'
     # project_name = '29423 Vagal - SISTER'
     if testing:
-        db = AMBRA_Backups.database.Database("CAPTIVA_Test")
+        db = AMBRA_Backups_dans.database.Database("CAPTIVA_Test")
         project = get_redcap_project(
             "14102 Khandwala-Radiology Imaging Services Core Lab Workflow"
         )
     else:
-        db = AMBRA_Backups.database.Database(db_name)
+        db = AMBRA_Backups_dans.database.Database(db_name)
         project = get_redcap_project(project_name)
     date = datetime(2024, 12, 3)
-    AMBRA_Backups.redcap_funcs.project_data_to_db(db, project)
+    AMBRA_Backups_dans.redcap_funcs.project_data_to_db(db, project)
 
     # manual backup
     # start_date = datetime(2023, 1, 1)

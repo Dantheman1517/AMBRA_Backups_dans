@@ -9,8 +9,8 @@ import os
 import shutil
 import pandas as pd
 import hashlib
-from AMBRA_Backups.REDCap_Log.redcap_log import REDCapLog
-from AMBRA_Backups.Database.database import Database
+from AMBRA_Backups_dans.redcap_log import REDCapLog
+from AMBRA_Backups_dans.Database.database import Database
 from AMBRA_Utils.Study import Study
 
 

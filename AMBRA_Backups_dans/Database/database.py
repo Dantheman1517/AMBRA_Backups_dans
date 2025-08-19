@@ -77,7 +77,8 @@ class Database:
     def connect(cls, db_name=None, config_path=None, n_retries=5):
         """ """
         config = cls.get_config(config_path=config_path)
-        db_config = config["ambra_backup"]
+
+        db_config = config[db_name]
 
         retry_num = 0
         while retry_num < n_retries:

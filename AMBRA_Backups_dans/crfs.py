@@ -8,7 +8,7 @@ from string import Template
 import re
 from bs4 import BeautifulSoup
 
-import AMBRA_Backups
+import AMBRA_Backups_dans
 import AMBRA_Utils
 
 
@@ -160,7 +160,7 @@ def get_database(database_name):
     """
     Returns a database object.
     """
-    database = AMBRA_Backups.database.Database(database_name)
+    database = AMBRA_Backups_dans.database.Database(database_name)
     return database
 
 
