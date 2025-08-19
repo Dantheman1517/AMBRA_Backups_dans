@@ -60,10 +60,26 @@ def get_id_patient(db, patient_name):
     return id_patient
 
 
-def create_mock(patient_name, action, mock_configs={}):
+def test_proj_configs(mocker, db, project):
+    
+    mock_configs = {'is_longitudinal' : True, 'instance' : None, 'arm_num' : 1, 'num_of_arms' : 1, 
+                    'arm_name' : 'Arm 1', 'num_of_events' : 1, 'event_name' : 'event_1_arm_1'}
+
+    test_update_record_in_redcap_not_db(mocker, db, project, mock_configs=mock_configs)
+
+
+
+
+def create_mock(patient_name, 
+                instrument_name,
+                action, 
+                mock_configs={}):
     """Create a mock log based on patient_name and action."""
 
-    # Mock record
+
+    instance = mock_configs.get("instance", None)
+
+    # Mock db record
     choices = ["1", "2", "3"]
     dropdown_input = random.choice(choices)
     radio_input = random.choice(choices)
@@ -74,6 +90,11 @@ def create_mock(patient_name, action, mock_configs={}):
         "pytest_radio": radio_input,
         "pytest_text": text_input,
     }
+    if instance:
+        mock_record["redcap_repeat_instance"] = instance
+        mock_record["redcap_repeat_instrument"] = instrument_name
+
+
 
     # Mock log
     test_user = "test_user"
@@ -84,27 +105,53 @@ def create_mock(patient_name, action, mock_configs={}):
         "record": patient_name,
     }
     details = ""
+    action = action.capitalize()
+    if action not in ["Create", "Update", "Delete"]:
+        raise ValueError("Action must be one of 'Create', 'Update', or 'Delete'")
 
-    if "is_longitudinal" mock_configs:
 
-        if mock_configs.get("num_of_arms", False):
-            if not mock_configs.get("arm_num", False):
-                raise ValueError("arm_num must be provided if num_of_arms is set")
-            
-            arm_num = mock_configs["arm_num"]
+    if "is_longitudinal" in mock_configs:
 
-            if mock_configs["num_of_arms"] > 1:
-                mock_log['action'] = f'Create record {patient_name} (Event 1 (Arm {arm_num}: Arm 1))'
-            if mock_configs["num_of_arms"] == 1:
-                mock_log['action'] = f'Create record {patient_name} (Event 1 (Arm {arm_num}: Arm 1))'
-                
-        if mock_configs.get("is_repeating", False):
+        # must be specified if is_longitudinal is set
+        if "num_of_arms" not in mock_configs:
+            raise ValueError("arm_num must be provided if num_of_arms is set")
+        if "arm_num" not in mock_configs:
+            raise ValueError("arm_num must be provided if num_of_arms is set")
+        if "arm_name" not in mock_configs:
+            raise ValueError("arm_name must be provided if num_of_arms is set")
+        if "num_of_events" not in mock_configs:
+            raise ValueError("num_of_events must be provided if is_longitudinal is set")        
+        if "event_name" not in mock_configs:
+            raise ValueError("event_name must be provided if is_longitudinal is set")
+
         
-            mock_record["redcap_repeat_instrument"] = "repeats_instrument_name"
-            mock_record["redcap_repeat_instance"] = 1
+        num_of_arms = mock_configs["num_of_arms"]
+        arm_num = mock_configs["arm_num"]
+        arm_name = mock_configs["arm_name"]
+        event_name = mock_configs["event_name"]
+        num_of_events = mock_configs["num_of_events"]
 
-            mock_log['action'] = ''
+        if num_of_arms == 1:
+        
+            if num_of_events == 1:
+                mock_log['action'] = f'{action} record {patient_name}'
 
+            elif num_of_events > 1:
+                if action == 'Create' or action == 'Update':
+                    mock_log['action'] = f'{action} record {patient_name} ({event_name})'
+                elif action == 'Delete':            
+                    mock_log['action'] = f'{action} record {patient_name}'
+
+        elif num_of_arms > 1:
+
+            if action == 'Create' or action == 'Update':
+                mock_log['action'] = f'{action} record {patient_name} ({event_name} (Arm {arm_num}: {arm_name})'
+            elif action == 'Delete':            
+                mock_log['action'] = f'{action} record {patient_name} (Arm {arm_num}: {arm_name})'
+
+    else:
+        # non-longitudinal actions
+        mock_log['action'] = f'{action} record {patient_name}'
 
 
 
@@ -306,13 +353,6 @@ def test_update_record_not_redcap_in_db(mocker, db, project):
     db.run_insert_query(
         """DELETE FROM patients WHERE patient_name = %s""", [patient_name]
     )
-
-
-def test_proj_configs(mocker, db, project):
-    
-    
-    test_update_record_in_redcap_not_db(mocker, db, project, mock_configs={'is_longitudinal' : True, 'arm_num' : 1})
-    test_update_record_in_redcap_not_db(mocker, db, project, mock_configs={'is_longitudinal' : True, 'arm_num' : 1})
 
 
 def test_update_record_in_redcap_not_db(mocker, db, project, mock_configs):
