@@ -9,9 +9,6 @@ import random
 import string
 import pandas as pd
 
-# Skip this legacy integration-heavy test module until refactored
-pytestmark = pytest.mark.skip(reason="Legacy RedCap integration tests temporarily disabled during reporter development")
-
 form_input = "please_dont_edit_form_for_testing"
 
 
@@ -71,8 +68,6 @@ def test_proj_configs(mocker, db, project):
     test_update_record_in_redcap_not_db(mocker, db, project, mock_configs=mock_configs)
 
 
-
-## Removed stray incomplete function definition that caused SyntaxError
 
 
 

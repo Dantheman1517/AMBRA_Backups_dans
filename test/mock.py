@@ -7,19 +7,20 @@ Creates mock based on record and project configurations
 from datetime import datetime
 import pandas as pd
 
+
 ################################################################################
 class Mock():
     # --------------------------------------------------------------------------
-    def __init__(self, project, log_info, mock_configs):
+    def __init__(self, project, log_info, proj_config):
         self.project = project
         self.log_info = log_info
-        self.mock_configs = mock_configs
+        self.proj_config = proj_config
         self.check_info_configs()
         self.expose_vars()
 
         self.mock_log = self.create_mock_log()
         self.mock_record = self.create_mock_record()
-        self.mock_db_record = self.make_db_format_record()
+        self.mock_db = self.make_db_format_record()
 
     # --------------------------------------------------------------------------
     def check_info_configs(self):
@@ -34,7 +35,7 @@ class Mock():
         info_missing = set(standard_info) - set(self.log_info.keys())
         if info_missing:
             raise ValueError(f"Missing following record info: {info_missing}")
-        configs_missing = set(standard_info_configs) - set(self.mock_configs.keys())
+        configs_missing = set(standard_info_configs) - set(self.proj_config.keys())
         if configs_missing:
             raise ValueError(f"Missing following mock configs: {configs_missing}")
         
@@ -52,12 +53,12 @@ class Mock():
             raise ValueError("Action must be one of 'Create', 'Update', or 'Delete'")
         self.deleted = 1 if self.action == 'Delete' else 0
 
-        self.num_of_arms = self.mock_configs["num_of_arms"]
-        self.arm_num = self.mock_configs["arm_num"]
-        self.arm_name = self.mock_configs["arm_name"]
-        self.event_label = self.mock_configs["event"]['label']
-        self.redcap_event_name = self.mock_configs["event"]['redcap_event_name']
-        self.num_of_events = self.mock_configs["num_of_events"]
+        self.num_of_arms = self.proj_config["num_of_arms"]
+        self.arm_num = self.proj_config["arm_num"]
+        self.arm_name = self.proj_config["arm_name"]
+        self.event_label = self.proj_config["event"]['label']
+        self.redcap_event_name = self.proj_config["event"]['redcap_event_name']
+        self.num_of_events = self.proj_config["num_of_events"]
 
     # --------------------------------------------------------------------------
     def create_mock_log(self):
@@ -72,7 +73,7 @@ class Mock():
             "record": self.patient_name,
         }
 
-        if "is_longitudinal" in self.mock_configs:        
+        if "is_longitudinal" in self.proj_config:        
 
             if self.num_of_arms == 1:
             
@@ -103,45 +104,53 @@ class Mock():
 
 
         # details
-        details = ', '.join([f"{variable} = '{self.fields[variable]}'" for variable in self.fields])
-        if self.instance:
-            details = f'[instance] = {self.instance}, ' + details
+        if self.action == 'Delete':
+            mock_log['details'] = f"record_id = '{self.patient_name}'"
+        else:
+            details = ', '.join([f"{field['redcap_variable']} = '{field['value']}'" for field in self.fields])
+            if self.instance and int(self.instance) > 1:
+                details = f'[instance] = {self.instance}, ' + details
+            mock_log['details'] = details
 
         return mock_log
 
     # --------------------------------------------------------------------------
     def create_mock_record(self):
         """
-        Create a mock record based on log_info and mock_configs.
+        Create a mock record based on log_info and proj_config.
         
         Inputs:
         --------    
         log_info: dict
             Dictionary containing patient_name, instrument_name, action, fields, verified, deleted.
-        mock_configs: dict
+        proj_config: dict
             Dictionary containing configurations like instance, num_of_arms, arm_num, arm_name, event_name, num_of_events.
         """
 
+        if self.action == 'Delete':
+            # if action is delete, return empty record
+            return []
+
 
         mock_record = {'record_id': self.patient_name}
-        mock_record.update(self.fields)
+        record_fields = {field['redcap_variable']: field['value'] for field in self.fields}
+        mock_record.update(record_fields)
         
         if self.instance:
             mock_record['redcap_repeat_instrument'] = self.instrument_name
             mock_record['redcap_repeat_instance'] = self.instance
 
         # standard redcap complete field
-        if f'{self.instrument_name}_completed' in self.fields:
-            mock_record[f'{self.instrument_name}_completed'] = self.fields[f'{self.instrument_name}_completed']
+        if f'{self.instrument_name}_completed' in record_fields:
+            mock_record[f'{self.instrument_name}_completed'] = record_fields[f'{self.instrument_name}_completed']
         else:
             mock_record[f'{self.instrument_name}_completed'] = '0'
 
         # -- longitudinal considerations --
-        # the only field relevant field for longitudinal data is 
-        # the unique event name.
-        # These are unique across arms, no need to specify arm
-        if "is_longitudinal" in self.mock_configs:
-            if self.num_of_events > 1:
+        # if two arms, then there absolutely are multiple events
+        # if only one arm, there can still be multiple events
+        if "is_longitudinal" in self.proj_config:
+            if self.num_of_arms > 1 or self.num_of_events > 1:
                 mock_record['redcap_event_name'] = self.redcap_event_name
 
         return mock_record
@@ -149,15 +158,29 @@ class Mock():
     # --------------------------------------------------------------------------
     def make_db_format_record(self):
 
-        mock_db_record = pd.DataFrame({
-            'patient_name': [self.patient_name]*self.num_fields,
-            'crf_name': [self.instrument_name]*self.num_fields,
-            'redcap_variable': self.fields.keys(),
-            'value': self.fields.values(),
-            'arm_num' : [self.arm_num]*self.num_fields,
-            'instance': [self.instance]*self.num_fields,
-            'verified': [self.verified]*self.num_fields,
-            'deleted': [self.deleted]*self.num_fields
+        record_fields = {field['redcap_variable']: field['value'] for field in self.fields}
+
+        mock_db_crf = pd.DataFrame({
+            'crf_name' : [self.instrument_name],
+            'arm_num' : [self.arm_num],
+            'unique_event_name' : [self.redcap_event_name],
+            'instance' : [self.instance],
+            'verified' : [self.verified],
+            'deleted' : [self.deleted]
+        })
+        
+        if self.deleted:
+            mock_db_crf_data = pd.DataFrame(columns=['value', 'redcap_variable'])
+        else:
+            mock_db_crf_data = pd.DataFrame({
+                'value' : record_fields.values(),
+                'redcap_variable' : record_fields.keys()
+            })
+
+        mock_db_patients = pd.DataFrame({
+            'patient_name' : [self.patient_name]
         })
 
-        return mock_db_record
+        return {'crf_redcap' : mock_db_crf, 
+                'crf_data_redcap' : mock_db_crf_data, 
+                'patients' :  mock_db_patients}
